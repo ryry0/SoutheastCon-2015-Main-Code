@@ -1,5 +1,6 @@
 #include <math.h>
 #include <Arduino.h>
+#include "encoder.h"
 
 #define PWM_PINOUT 4
 #define MOTOR1_DIRECTIONA 53
@@ -25,9 +26,10 @@ void setup()
 
 int main()
 {
-  char duty = 255;
+  char duty = 50;
   int counter = 0;
   int incomingByte = 0;
+  unsigned long prev_enc_value = 1;
 
   init();
   setup();
@@ -73,7 +75,13 @@ int main()
         digitalWrite(MOTOR1_DIRECTIONA,HIGH);
         counter = 1; //reset the counter so space to stop works correctly.
       }
+    }
 
+    if (encoder::encoder_count != prev_enc_value)
+    {
+      Serial.print(encoder::encoder_count, DEC);
+      Serial.print("\n");
+      prev_enc_value = encoder::encoder_count;
     }
   }
   return 0;
