@@ -5,6 +5,7 @@
  * That makes 1920 ticks per shaft rev.
  *
  * The timer interrupt uses the following formula
+ * (16M/prescaler)/(desired frequency) = number of counts for CTC mode.
  *
  * Motor Pinout:
  * Red    | motor power (connects to one motor terminal)
@@ -14,11 +15,17 @@
  * Yellow | encoder A output
  * White  | encoder B output
  *
- * (16M/prescaler)/(desired frequency) = number of counts for CTC mode.
+ * The pololu motor max speed is 350 rev/minute.
+ * In radians per second that is:
+ * 350/60 * 2pi = 36.651 rad/s @ theoretically 255 PWM
  */
-#define ARDUINO 102
+
 #include <math.h>
 #include <Arduino.h>
+
+#define ARDUINO 102
+#define ENCODER_USE_INTERRUPTS
+
 #include "Encoder.h"
 #include "PID.h"
 
@@ -26,10 +33,17 @@
 #define PRESCALE_8    0x02
 #define PRESCALE_64   0x03
 
+#define PWM_SCALER (255/36.651)
+
+#define MOTOR_MAX_SPEED //in radians per s
+
+#define TICKS_PER_REVOLUTION 1920
+
 #define KP 1.0
 #define KI 0
 #define KD 0
 //this is the number of ticks for CTC mode
+#define SAMPLE_RATE 1000 //Hz
 #define CTC_MATCH 16000 //*should* run the interrupt at 1kHz
 
 //Motor 0 Pins
@@ -55,8 +69,8 @@
 #define ENCODER_RESOLUTION
 #define GEAR_RATIO
 
-#define ENCODER1_A 2
-#define ENCODER1_B 3
+#define ENCODER0_A 2
+#define ENCODER0_B 3
 
 #define ARROW_UP    65
 #define ARROW_DOWN  66
@@ -76,30 +90,56 @@ struct motor {
 //variables
 motor    motor0;
 pid_data motor0_pid_data;
-Encoder  motor0_encoder(
+Encoder  motor0_encoder(ENCODER0_A, ENCODER0_B);
 
 //function prototypes
 void setup();
 void readKeyboard();
 void timerInterrupt();
+void moveMotor(motor active_motor, int direction);
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
+  float current_error;
 
+  //get the current velocity in rads/s
+  //to get the current velocity, we get the number of encoder ticks since the
+  //last sample time, then we convert that into radians. Then we divide that by
+  //the timestep.
+  motor0.current_velocity = ((motor0_encoder.read()* 2*PI)/
+    TICKS_PER_REVOLUTION) * (float) SAMPLE_RATE;
+  motor0_encoder.write(0); //reset encoder count
+
+  current_error = command_velocity - current_velocity;
   fixedUpdatePID(motor0_pid_data, current_error);
+
+  motor0.pwm = (command_velocity * PWM_SCALER) + motor0_pid_data.pid_output;
+  motor0.pwm = constrain(motor0.pwm , 0, 255);
+  analogWrite(motor0.pwm_pin, motor0.pwm);
+  motor0.previous_position = motor0.current_position;
 }
 
 //main
 int main() {
+  long prev_enc_value = 0;
   init();
   setup();
 
   while (1) {
     readKeyboard();
+
+    if (motor0.encoder_value != prev_enc_value) {
+      Serial.print(motor0.encoder_value, DEC);
+      Serial.print(" ");
+      Serial.print(motor0.current_velocity, DEC);
+      Serial.print("\n");
+      prev_enc_value = motor0.encoder_value;
+    }
   }
   return 0;
 } //end main()
 
+//function definitions
 void setup() {
   noInterrupts();
   //set up the motors
@@ -107,7 +147,7 @@ void setup() {
   motor0.pwm_pin = MOTOR0_PWM_PINOUT;
   motor0.directiona = MOTOR0_DIRECTIONA;
   motor0.directionb = MOTOR0_DIRECTIONB;
-  motor0.command_velocity = 0;
+  moor0.command_velocity = 0;
   motor0.current_velocity = 0;
 
   //set all the pins to output
@@ -141,7 +181,6 @@ void readKeyboard() {
   static int counter = 0;
   int incomingByte = 0;
 
-  analogWrite(motor0.pwm_pin, duty);
   if (Serial.available() > 0) {
     incomingByte = Serial.read();
 
@@ -152,11 +191,10 @@ void readKeyboard() {
           digitalWrite(motor0.directionb,LOW);
         }
         else {
-          digitalWrite(motor0.directiona,LOW);
-          digitalWrite(motor0.directionb,HIGH);
+          moveMotor
         }
         counter ++;
-        break;
+        reak;
 
       case ARROW_UP:
         motor0.command_velocity += 0.2;
@@ -179,6 +217,17 @@ void readKeyboard() {
         break;
       default:
         break;
-    }
-  }
+    } //end switch
+  } //end if
 } //end readKeyboard();
+
+void moveMotor(motor &active_motor, int direction) {
+  if (direction < 0) {
+    digitalWrite(active_motor.directiona,LOW);
+    digitalWrite(active_motor.directionb,HIGH);
+  }
+  else if (direction > 0) {
+    digitalWrite(active_motor.directiona,HIGH);
+    digitalWrite(active_motor.directionb,LOW);
+  }
+}
