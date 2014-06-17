@@ -29,27 +29,31 @@
 #ifndef Encoder_h_
 #define Encoder_h_
 
-#if defined(ARDUINO) && ARDUINO >= 100
+//#if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
+/*
 #elif defined(WIRING)
 #include "Wiring.h"
 #else
 #include "WProgram.h"
 #include "pins_arduino.h"
 #endif
+*/
 
 #include "utility/direct_pin_read.h"
 
-#if defined(ENCODER_USE_INTERRUPTS) || !defined(ENCODER_DO_NOT_USE_INTERRUPTS)
+//#if defined(ENCODER_USE_INTERRUPTS) || !defined(ENCODER_DO_NOT_USE_INTERRUPTS)
 #define ENCODER_USE_INTERRUPTS
 #define ENCODER_ARGLIST_SIZE CORE_NUM_INTERRUPT
 #include "utility/interrupt_pins.h"
+/*
 #ifdef ENCODER_OPTIMIZE_INTERRUPTS
 #include "utility/interrupt_config.h"
 #endif
 #else
 #define ENCODER_ARGLIST_SIZE 0
 #endif
+*/
 
 
 
