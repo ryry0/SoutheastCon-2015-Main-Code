@@ -110,30 +110,29 @@ ISR(TIMER1_COMPA_vect) {
     TICKS_PER_REVOLUTION) * (float) SAMPLE_RATE;
   motor0_encoder.write(0); //reset encoder count
 
-  current_error = command_velocity - current_velocity;
+  current_error = motor0.command_velocity - motor0.current_velocity;
   fixedUpdatePID(motor0_pid_data, current_error);
 
-  motor0.pwm = (command_velocity * PWM_SCALER) + motor0_pid_data.pid_output;
+  motor0.pwm = (motor0.command_velocity * PWM_SCALER) +
+    motor0_pid_data.pid_output;
   motor0.pwm = constrain(motor0.pwm , 0, 255);
   analogWrite(motor0.pwm_pin, motor0.pwm);
-  motor0.previous_position = motor0.current_position;
 }
 
 //main
 int main() {
-  long prev_enc_value = 0;
+  float prev_motor_velocity = 0;
+
   init();
   setup();
 
   while (1) {
     readKeyboard();
 
-    if (motor0.encoder_value != prev_enc_value) {
-      Serial.print(motor0.encoder_value, DEC);
-      Serial.print(" ");
+    if (motor0.current_velocity != prev_motor_velocity) {
       Serial.print(motor0.current_velocity, DEC);
       Serial.print("\n");
-      prev_enc_value = motor0.encoder_value;
+      prev_motor_velocity = motor0.current_velocity;
     }
   }
   return 0;
@@ -147,7 +146,7 @@ void setup() {
   motor0.pwm_pin = MOTOR0_PWM_PINOUT;
   motor0.directiona = MOTOR0_DIRECTIONA;
   motor0.directionb = MOTOR0_DIRECTIONB;
-  moor0.command_velocity = 0;
+  motor0.command_velocity = 0;
   motor0.current_velocity = 0;
 
   //set all the pins to output
@@ -191,10 +190,11 @@ void readKeyboard() {
           digitalWrite(motor0.directionb,LOW);
         }
         else {
-          moveMotor
+          digitalWrite(motor0.directiona,HIGH);
+          digitalWrite(motor0.directionb,LOW);
         }
         counter ++;
-        reak;
+        break;
 
       case ARROW_UP:
         motor0.command_velocity += 0.2;
