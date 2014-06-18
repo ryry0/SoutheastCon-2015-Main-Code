@@ -39,7 +39,7 @@
 
 #define TICKS_PER_REVOLUTION 1920
 
-#define KP 1.0
+#define KP 100.0
 #define KI 0
 #define KD 0
 //this is the number of ticks for CTC mode
@@ -79,7 +79,7 @@
 
 //structures
 struct motor {
-  char  pwm;
+  int   pwm;              //its an int so overflow problems don't happen
   char  pwm_pin;
   char  directiona;
   char  directionb;
@@ -92,6 +92,7 @@ struct motor {
 motor    motor0;
 pid_data motor0_pid_data;
 Encoder  motor0_encoder(ENCODER0_A, ENCODER0_B);
+unsigned long time_begin, time_now, time_total;
 
 //function prototypes
 void setup();
@@ -99,7 +100,6 @@ void readKeyboard();
 void timerInterrupt();
 void moveMotor(motor active_motor, int direction);
 
-unsigned long time_begin, time_now, time_total;
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
   float current_error;
@@ -131,8 +131,16 @@ ISR(TIMER1_COMPA_vect) {
     ++time_since_last_tick;
   }
 
+  //calculate PID
+  current_error = motor0.command_velocity - motor0.current_velocity;
+  fixedUpdatePID(motor0_pid_data, current_error);
 
+  motor0.pwm = (motor0.command_velocity * PWM_SCALER) +
+    motor0_pid_data.pid_output;
+
+  motor0.pwm = constrain(motor0.pwm, 0, 255);
   analogWrite(motor0.pwm_pin, motor0.pwm);
+
   time_now = micros();
   time_total = time_now - time_begin;
 }
@@ -149,9 +157,25 @@ int main() {
     readKeyboard();
 
     if (motor0.current_velocity != prev_motor_velocity) {
-      //Serial.print(motor0.current_velocity, DEC);
+      Serial.print(motor0.command_velocity, 4);
+      Serial.print("\t");
+
+      Serial.print(motor0.current_velocity, 4);
+      Serial.print("\t");
+
+      Serial.print(motor0_pid_data.previous_error, 4);
+      Serial.print("\t");
+
+      Serial.print(motor0_pid_data.pid_output, 4);
+      Serial.print("\t");
+
+      Serial.print(motor0.pwm, DEC);
+      Serial.print("\n");
+
+      /*
       Serial.print(time_total, DEC);
       Serial.print("\n");
+      */
       prev_motor_velocity = motor0.current_velocity;
     }
 
@@ -225,11 +249,11 @@ void readKeyboard() {
         break;
 
       case ARROW_UP:
-        motor0.pwm += 2;
+        motor0.command_velocity += 0.2;
         break;
 
       case ARROW_DOWN:
-        motor0.pwm -= 2;
+        motor0.command_velocity -= 0.2;
         break;
 
       case ARROW_LEFT:
