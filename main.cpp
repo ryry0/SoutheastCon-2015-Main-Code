@@ -42,6 +42,7 @@
 #define KP 100.0
 #define KI 0
 #define KD 0
+#define INT_GUARD 0
 //this is the number of ticks for CTC mode
 #define SAMPLE_RATE 1000 //Hz
 #define CTC_MATCH 16000 //*should* run the interrupt at 1kHz
@@ -214,7 +215,7 @@ void setup() {
   Serial.begin(9600);
 
   //set the PID constants
-  setPIDConstants(motor0_pid_data, KP, KI, KD);
+  setPIDConstants(motor0_pid_data, KP, KI, KD, INT_GUARD);
 
   //configure the timer interrupt
   TCCR1A = 0;
