@@ -1,6 +1,7 @@
 #ifndef PID_H_
 #define PID_H_
 
+#include <Arduino.h>
 //Use this data structure to create a customized PID per motor
 struct pid_data {
   float proportional_gain;
@@ -8,14 +9,17 @@ struct pid_data {
   float derivative_gain;
   float previous_error;
   float integral_error;
+  float integral_guard;
   float pid_output;
 };
 
 void setPIDConstants(pid_data &pid, float proportional_gain,
-                     float integral_gain, float derivative_gain) {
+                     float integral_gain, float derivative_gain,
+                     float integral_guard) {
   pid.proportional_gain = proportional_gain;
   pid.integral_gain = integral_gain;
   pid.derivative_gain = derivative_gain;
+  pid.integral_guard = integral_guard;
   pid.previous_error = 0;
   pid.integral_error = 0;
 }
@@ -24,6 +28,8 @@ void updatePID(pid_data &pid, float current_error, float delta_t) {
   float error_differential = 0;
 
   pid.integral_error += current_error * delta_t;
+  pid.integral_error = constrain(pid.integral_error, -pid.integral_guard,
+      pid.integral_guard);
   error_differential = (current_error - pid.previous_error)/delta_t;
 
   pid.pid_output =  (pid.proportional_gain * current_error) +
@@ -39,6 +45,9 @@ void fixedUpdatePID(pid_data &pid, float current_error) {
   float error_differential = 0;
 
   pid.integral_error += current_error;
+  pid.integral_error = constrain(pid.integral_error, -pid.integral_guard,
+      pid.integral_guard);
+
   error_differential = (current_error - pid.previous_error);
 
   pid.pid_output =  (pid.proportional_gain * current_error) +
