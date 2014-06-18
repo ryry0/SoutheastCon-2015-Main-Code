@@ -83,6 +83,7 @@ struct motor {
   char  pwm_pin;
   char  directiona;
   char  directionb;
+  long  encoder_value;
   float command_velocity; //specified in rad/s
   float current_velocity; //specified in rad/s
 };
@@ -98,30 +99,48 @@ void readKeyboard();
 void timerInterrupt();
 void moveMotor(motor active_motor, int direction);
 
+unsigned long time_begin, time_now, time_total;
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
   float current_error;
+  //time since last tick is used when the encoder creates pulses slower than
+  //1 per millisecond
+  static long time_since_last_tick = 1;
 
+  time_begin = micros();
   //get the current velocity in rads/s
   //to get the current velocity, we get the number of encoder ticks since the
   //last sample time, then we convert that into radians. Then we divide that by
   //the timestep.
-  motor0.current_velocity = ((motor0_encoder.read()* 2*PI)/
-    TICKS_PER_REVOLUTION) * (float) SAMPLE_RATE;
-  motor0_encoder.write(0); //reset encoder count
+  motor0.encoder_value = motor0_encoder.read();
 
-  current_error = motor0.command_velocity - motor0.current_velocity;
-  fixedUpdatePID(motor0_pid_data, current_error);
+  if (motor0.encoder_value != 0) {
+    /*
+     * current_velocity =           num_ticks * 2PI
+     *                    __________________________________ * sample_rate
+     *                    ticks/rev * millis_since_last_tick
+     */
+    motor0.current_velocity = ( ((float) motor0.encoder_value * 2*PI)/
+        ((float) TICKS_PER_REVOLUTION * (float) time_since_last_tick) ) *
+        (float) SAMPLE_RATE;
 
-  motor0.pwm = (motor0.command_velocity * PWM_SCALER) +
-    motor0_pid_data.pid_output;
-  motor0.pwm = constrain(motor0.pwm , 0, 255);
+    motor0_encoder.write(0); //reset encoder count
+    time_since_last_tick = 1;
+  }
+  else {
+    ++time_since_last_tick;
+  }
+
+
   analogWrite(motor0.pwm_pin, motor0.pwm);
+  time_now = micros();
+  time_total = time_now - time_begin;
 }
 
 //main
 int main() {
   float prev_motor_velocity = 0;
+  long  prev_encoder_value = 0;
 
   init();
   setup();
@@ -130,10 +149,19 @@ int main() {
     readKeyboard();
 
     if (motor0.current_velocity != prev_motor_velocity) {
-      Serial.print(motor0.current_velocity, DEC);
+      //Serial.print(motor0.current_velocity, DEC);
+      Serial.print(time_total, DEC);
       Serial.print("\n");
       prev_motor_velocity = motor0.current_velocity;
     }
+
+    /*
+    if (motor0.encoder_value != prev_encoder_value) {
+      prev_encoder_value = motor0.encoder_value;
+      Serial.print(motor0.encoder_value, DEC);
+      Serial.print("\n");
+    }
+    */
   }
   return 0;
 } //end main()
@@ -197,11 +225,11 @@ void readKeyboard() {
         break;
 
       case ARROW_UP:
-        motor0.command_velocity += 0.2;
+        motor0.pwm += 2;
         break;
 
       case ARROW_DOWN:
-        motor0.command_velocity -= 0.2;
+        motor0.pwm -= 2;
         break;
 
       case ARROW_LEFT:
