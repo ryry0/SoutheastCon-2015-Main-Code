@@ -35,14 +35,13 @@
 
 #define PWM_SCALER (255/36.651)
 
-#define MOTOR_MAX_SPEED //in radians per s
-
 #define TICKS_PER_REVOLUTION 1920
 
-#define KP 100.0
-#define KI 0
+#define KP 15
+#define KI 1
 #define KD 0
-#define INT_GUARD 0
+#define INT_GUARD 255
+
 //this is the number of ticks for CTC mode
 #define SAMPLE_RATE 1000 //Hz
 #define CTC_MATCH 16000 //*should* run the interrupt at 1kHz
@@ -66,9 +65,6 @@
 #define MOTOR3_PWM_PINOUT 4
 #define MOTOR3_DIRECTIONA 22
 #define MOTOR3_DIRECTIONB 23
-
-#define ENCODER_RESOLUTION
-#define GEAR_RATIO
 
 #define ENCODER0_A 2
 #define ENCODER0_B 3
@@ -99,7 +95,7 @@ unsigned long time_begin, time_now, time_total;
 void setup();
 void readKeyboard();
 void timerInterrupt();
-void moveMotor(motor active_motor, int direction);
+void moveMotor(const motor &active_motor, const int direction);
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
@@ -136,15 +132,22 @@ ISR(TIMER1_COMPA_vect) {
   current_error = motor0.command_velocity - motor0.current_velocity;
   fixedUpdatePID(motor0_pid_data, current_error);
 
-  motor0.pwm = (motor0.command_velocity * PWM_SCALER) +
-    motor0_pid_data.pid_output;
+  motor0.pwm = motor0_pid_data.pid_output;
+
+  if (motor0.pwm < 0) {
+    motor0.pwm = -motor0.pwm;
+    moveMotor(motor0, -1);
+  }
+  else {
+    moveMotor(motor0, 1);
+  }
 
   motor0.pwm = constrain(motor0.pwm, 0, 255);
   analogWrite(motor0.pwm_pin, motor0.pwm);
 
   time_now = micros();
   time_total = time_now - time_begin;
-}
+} //end interrupt handler
 
 //main
 int main() {
@@ -171,12 +174,10 @@ int main() {
       Serial.print("\t");
 
       Serial.print(motor0.pwm, DEC);
-      Serial.print("\n");
+      Serial.print("\t");
 
-      /*
       Serial.print(time_total, DEC);
       Serial.print("\n");
-      */
       prev_motor_velocity = motor0.current_velocity;
     }
 
@@ -241,6 +242,7 @@ void readKeyboard() {
         if (counter % 2 == 1) {
           digitalWrite(motor0.directiona,LOW);
           digitalWrite(motor0.directionb,LOW);
+          motor0.command_velocity = 0;
         }
         else {
           digitalWrite(motor0.directiona,HIGH);
@@ -258,14 +260,19 @@ void readKeyboard() {
         break;
 
       case ARROW_LEFT:
-        digitalWrite(motor0.directiona,HIGH);
-        digitalWrite(motor0.directionb,LOW);
+        //moveMotor(motor0, -1);
+        motor0.command_velocity += 1.0;
         counter = 1;
         break;
 
       case ARROW_RIGHT:
-        digitalWrite(motor0.directiona,LOW);
-        digitalWrite(motor0.directionb,HIGH);
+        //moveMotor(motor0, 1);
+        motor0.command_velocity -= 1.0;
+        counter = 1; //reset the counter so space to stop works correctly.
+        break;
+
+      case 'a':
+        motor0.command_velocity = 18.0;
         counter = 1; //reset the counter so space to stop works correctly.
         break;
       default:
@@ -274,7 +281,7 @@ void readKeyboard() {
   } //end if
 } //end readKeyboard();
 
-void moveMotor(motor &active_motor, int direction) {
+void moveMotor(const motor &active_motor, const int direction) {
   if (direction < 0) {
     digitalWrite(active_motor.directiona,LOW);
     digitalWrite(active_motor.directionb,HIGH);
