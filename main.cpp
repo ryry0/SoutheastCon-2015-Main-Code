@@ -37,10 +37,10 @@
 
 #define TICKS_PER_REVOLUTION 1920
 
-#define KP 15
-#define KI 1
+#define KP 2.269
+#define KI 18.4417
 #define KD 0
-#define INT_GUARD 255
+#define INT_GUARD 1000
 
 //this is the number of ticks for CTC mode
 #define SAMPLE_RATE 1000 //Hz
@@ -89,7 +89,13 @@ struct motor {
 motor    motor0;
 pid_data motor0_pid_data;
 Encoder  motor0_encoder(ENCODER0_A, ENCODER0_B);
-unsigned long time_begin, time_now, time_total;
+/* test variables
+   unsigned long time_begin, time_now, time_total;
+   unsigned long display_count = 0;
+   const int NUM_SAMPLES = 10;
+   float velocity_samples[NUM_SAMPLES] = {0};
+   float avg_velocity = 0;
+   */
 
 //function prototypes
 void setup();
@@ -99,6 +105,7 @@ void moveMotor(const motor &active_motor, const int direction);
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
+  //static int counter = 0;
   float current_error;
   //time since last tick is used when the encoder creates pulses slower than
   //1 per millisecond
@@ -119,7 +126,15 @@ ISR(TIMER1_COMPA_vect) {
      */
     motor0.current_velocity = ( ((float) motor0.encoder_value * 2*PI)/
         ((float) TICKS_PER_REVOLUTION * (float) time_since_last_tick) ) *
-        (float) SAMPLE_RATE;
+      (float) SAMPLE_RATE;
+
+    /* averaging code
+       velocity_samples[counter] = motor0.current_velocity;
+       for (int i = 0; i < NUM_SAMPLES; ++i) {
+         avg_velocity += velocity_samples[i];
+       }
+       avg_velocity = avg_velocity/NUM_SAMPLES;
+       */
 
     motor0_encoder.write(0); //reset encoder count
     time_since_last_tick = 1;
@@ -130,7 +145,7 @@ ISR(TIMER1_COMPA_vect) {
 
   //calculate PID
   current_error = motor0.command_velocity - motor0.current_velocity;
-  fixedUpdatePID(motor0_pid_data, current_error);
+  updatePID(motor0_pid_data, current_error, .001);
 
   motor0.pwm = motor0_pid_data.pid_output;
 
@@ -145,14 +160,22 @@ ISR(TIMER1_COMPA_vect) {
   motor0.pwm = constrain(motor0.pwm, 0, 255);
   analogWrite(motor0.pwm_pin, motor0.pwm);
 
+  /*
+  //profiling code
   time_now = micros();
   time_total = time_now - time_begin;
+
+  ++counter;
+  counter = counter % NUM_SAMPLES;
+  ++display_count;
+  */
 } //end interrupt handler
 
 //main
 int main() {
   float prev_motor_velocity = 0;
   long  prev_encoder_value = 0;
+  long  plot_time_now, plot_time_prev;
 
   init();
   setup();
@@ -160,6 +183,7 @@ int main() {
   while (1) {
     readKeyboard();
 
+    //testing stuff
     if (motor0.current_velocity != prev_motor_velocity) {
       Serial.print(motor0.command_velocity, 4);
       Serial.print("\t");
@@ -176,18 +200,36 @@ int main() {
       Serial.print(motor0.pwm, DEC);
       Serial.print("\t");
 
-      Serial.print(time_total, DEC);
-      Serial.print("\n");
       prev_motor_velocity = motor0.current_velocity;
     }
 
     /*
-    if (motor0.encoder_value != prev_encoder_value) {
-      prev_encoder_value = motor0.encoder_value;
-      Serial.print(motor0.encoder_value, DEC);
-      Serial.print("\n");
-    }
-    */
+       if (display_count > 100) {
+       plot_time_now = millis();
+       Serial.print(plot_time_now, 4);
+       Serial.print("\t");
+
+       Serial.print(motor0.command_velocity, 4);
+       Serial.print("\t");
+
+       Serial.print(motor0.current_velocity, 4);
+       Serial.print("\t");
+
+       Serial.print(avg_velocity, 4);
+       Serial.print("\n");
+       Serial.print(time_total, DEC);
+       Serial.print("\n");
+
+       display_count = 0;
+
+       }
+
+       if (motor0.encoder_value != prev_encoder_value) {
+       prev_encoder_value = motor0.encoder_value;
+       Serial.print(motor0.encoder_value, DEC);
+       Serial.print("\n");
+       }
+       */
   }
   return 0;
 } //end main()
@@ -261,13 +303,13 @@ void readKeyboard() {
 
       case ARROW_LEFT:
         //moveMotor(motor0, -1);
-        motor0.command_velocity += 1.0;
+        motor0.command_velocity += 5.0;
         counter = 1;
         break;
 
       case ARROW_RIGHT:
         //moveMotor(motor0, 1);
-        motor0.command_velocity -= 1.0;
+        motor0.command_velocity -= 5.0;
         counter = 1; //reset the counter so space to stop works correctly.
         break;
 
