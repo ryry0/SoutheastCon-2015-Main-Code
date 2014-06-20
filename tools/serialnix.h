@@ -15,13 +15,13 @@
 #include <termios.h>
 
 
-int open_port()//returns the file descriptor or -1;
+int open_port(char * port_name)//returns the file descriptor or -1;
 {
   int fd; //file descriptor for the port
-  fd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NDELAY);
+  fd = open(port_name, O_RDWR | O_NOCTTY | O_NDELAY);
   if (fd==-1)
   {
-    perror("open_port: Unable to open serial port"); 
+    perror("open_port: Unable to open serial port");
   }
   else
     fcntl(fd, F_SETFL, 0);
