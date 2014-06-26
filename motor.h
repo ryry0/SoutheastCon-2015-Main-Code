@@ -11,12 +11,12 @@ struct motor {
   float current_velocity; //specified in rad/s
 };
 
-void moveMotor(const motor &active_motor, const int &direction) {
-  if (direction < 0) {
+void moveMotor(const motor &active_motor) {
+  if (active_motor.command_velocity < 0) {
     digitalWrite(active_motor.directiona,LOW);
     digitalWrite(active_motor.directionb,HIGH);
   }
-  else if (direction > 0) {
+  else if (active_motor.command_velocity > 0) {
     digitalWrite(active_motor.directiona,HIGH);
     digitalWrite(active_motor.directionb,LOW);
   }
