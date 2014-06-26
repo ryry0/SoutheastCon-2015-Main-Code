@@ -41,6 +41,8 @@
 
 #define TICKS_PER_REVOLUTION 1920
 
+#define NUM_MOTORS 4
+
 #define KP 2.269
 #define KI 18.4417
 #define KD 0
@@ -91,9 +93,14 @@
 
 
 //variables
-motor    motor0;
-pid_data motor0_pid_data;
-Encoder  motor0_encoder(ENCODER0_A, ENCODER0_B);
+motor    motors[NUM_MOTORS];
+pid_data motor_pid_data[NUM_MOTORS];
+Encoder  motor_encoders[NUM_MOTORS] = {
+  Encoder(MOTOR0_ENCODER_A, MOTOR0_ENCODER_B),
+  Encoder(MOTOR1_ENCODER_A, MOTOR1_ENCODER_B),
+  Encoder(MOTOR2_ENCODER_A, MOTOR2_ENCODER_B),
+  Encoder(MOTOR3_ENCODER_A, MOTOR3_ENCODER_B)
+};
 /* test variables
    unsigned long time_begin, time_now, time_total;
    unsigned long display_count = 0;
@@ -112,59 +119,62 @@ ISR(TIMER1_COMPA_vect) {
   float current_error;
   //time since last tick is used when the encoder creates pulses slower than
   //1 per millisecond
-  static long time_since_last_tick = 1;
+  static long time_since_last_tick[NUM_MOTORS] = {1, 1, 1, 1};
 
   //time_begin = micros();
   //get the current velocity in rads/s
   //to get the current velocity, we get the number of encoder ticks since the
   //last sample time, then we convert that into radians. Then we divide that by
   //the timestep.
-  motor0.encoder_value = motor0_encoder.read();
 
-  if (motor0.encoder_value != 0) {
-    /*
-     * current_velocity =           num_ticks * 2PI
-     *                    __________________________________ * sample_rate
-     *                    ticks/rev * millis_since_last_tick
-     */
-    motor0.current_velocity = ( ((float) motor0.encoder_value * 2*PI)/
-        ((float) TICKS_PER_REVOLUTION * (float) time_since_last_tick) ) *
-      (float) SAMPLE_RATE;
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    motors[i].encoder_value = motor_encoders[i].read();
 
-    /* averaging code
-       velocity_samples[counter] = motor0.current_velocity;
-       for (int i = 0; i < NUM_SAMPLES; ++i) {
-         avg_velocity += velocity_samples[i];
-       }
-       avg_velocity = avg_velocity/NUM_SAMPLES;
+    if (motors[i].encoder_value != 0) {
+      /*
+       * current_velocity =           num_ticks * 2PI
+       *                    __________________________________ * sample_rate
+       *                    ticks/rev * millis_since_last_tick
        */
+      motors[i].current_velocity = ( ((float) motors[i].encoder_value * 2*PI)/
+          ((float) TICKS_PER_REVOLUTION * (float) time_since_last_tick[i]) ) *
+        (float) SAMPLE_RATE;
 
-    motor0_encoder.write(0); //reset encoder count
-    time_since_last_tick = 1;
-  }
-  else if (time_since_last_tick >= TIME_THRESHOLD) {
-    motor0.current_velocity = 0.0; //so much time has passed we're not moving
-  }
-  else {
-    ++time_since_last_tick;
-  }
+      /* averaging code
+         velocity_samples[counter] = motor0.current_velocity;
+         for (int i = 0; i < NUM_SAMPLES; ++i) {
+         avg_velocity += velocity_samples[i];
+         }
+         avg_velocity = avg_velocity/NUM_SAMPLES;
+         */
 
-  //calculate PID
-  current_error = motor0.command_velocity - motor0.current_velocity;
-  updatePID(motor0_pid_data, current_error, .001);
+      motor_encoders[i].write(0); //reset encoder count
+      time_since_last_tick[i] = 1;
+    }
+    else if (time_since_last_tick[i] >= TIME_THRESHOLD) {
+      motors[i].current_velocity = 0.0; //so much time has passed we're not moving
+    }
+    else {
+      ++time_since_last_tick[i];
+    }
 
-  motor0.pwm = motor0_pid_data.pid_output;
+    //calculate PID
+    current_error = motors[i].command_velocity - motors[i].current_velocity;
+    updatePID(motor_pid_data[i], current_error, .001);
 
-  if (motor0.pwm < 0) {
-    motor0.pwm = -motor0.pwm;
-    moveMotor(motor0, -1);
+    motors[i].pwm = motor_pid_data[i].pid_output;
+
+    if (motors[i].pwm < 0) {
+      motors[i].pwm = -motors[i].pwm;
+      setMotorDirection(motors[i], DIRECTION_1);
+    }
+    else {
+      setMotorDirection(motors[i], DIRECTION_2);
+    }
+
+    motors[i].pwm = constrain(motors[i].pwm, 0, 255);
+    analogWrite(motors[i].pwm_pin, motors[i].pwm);
   }
-  else {
-    moveMotor(motor0, 1);
-  }
-
-  motor0.pwm = constrain(motor0.pwm, 0, 255);
-  analogWrite(motor0.pwm_pin, motor0.pwm);
 
   /*
   //profiling code
@@ -190,23 +200,23 @@ int main() {
     readKeyboard();
 
     //testing stuff
-    if (motor0.current_velocity != prev_motor_velocity) {
-      Serial.print(motor0.command_velocity, 4);
+    if (motors[BACK_LEFT_MOTOR].current_velocity != prev_motor_velocity) {
+      Serial.print(motors[BACK_LEFT_MOTOR].command_velocity, 4);
       Serial.print("\t");
 
-      Serial.print(motor0.current_velocity, 4);
+      Serial.print(motors[BACK_LEFT_MOTOR].current_velocity, 4);
       Serial.print("\t");
 
-      Serial.print(motor0_pid_data.previous_error, 4);
+      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].previous_error, 4);
       Serial.print("\t");
 
-      Serial.print(motor0_pid_data.pid_output, 4);
+      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].pid_output, 4);
       Serial.print("\t");
 
-      Serial.print(motor0.pwm, DEC);
+      Serial.print(motors[BACK_LEFT_MOTOR].pwm, DEC);
       Serial.print("\n");
 
-      prev_motor_velocity = motor0.current_velocity;
+      prev_motor_velocity = motors[BACK_LEFT_MOTOR].current_velocity;
     }
 
     /*
@@ -244,27 +254,47 @@ int main() {
 void setup() {
   noInterrupts();
   //set up the motors
-  motor0.pwm = 0;
-  motor0.pwm_pin = MOTOR0_PWM_PINOUT;
-  motor0.directiona = MOTOR0_DIRECTIONA;
-  motor0.directionb = MOTOR0_DIRECTIONB;
-  motor0.command_velocity = 0;
-  motor0.current_velocity = 0;
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    motors[i].pwm = 0;
+    motors[i].command_velocity = 0;
+    motors[i].current_velocity = 0;
+  }
+
+  motors[BACK_LEFT_MOTOR].pwm_pin = MOTOR0_PWM_PINOUT;
+  motors[BACK_LEFT_MOTOR].directiona = MOTOR0_DIRECTIONA;
+  motors[BACK_LEFT_MOTOR].directionb = MOTOR0_DIRECTIONB;
+
+  motors[FRONT_LEFT_MOTOR].pwm_pin = MOTOR1_PWM_PINOUT;
+  motors[FRONT_LEFT_MOTOR].directiona = MOTOR1_DIRECTIONA;
+  motors[FRONT_LEFT_MOTOR].directionb = MOTOR1_DIRECTIONB;
+
+  motors[FRONT_RIGHT_MOTOR].pwm_pin = MOTOR2_PWM_PINOUT;
+  motors[FRONT_RIGHT_MOTOR].directiona = MOTOR2_DIRECTIONA;
+  motors[FRONT_RIGHT_MOTOR].directionb = MOTOR2_DIRECTIONB;
+
+  motors[BACK_RIGHT_MOTOR].pwm_pin = MOTOR3_PWM_PINOUT;
+  motors[BACK_RIGHT_MOTOR].directiona = MOTOR3_DIRECTIONA;
+  motors[BACK_RIGHT_MOTOR].directionb = MOTOR3_DIRECTIONB;
 
   //set all the pins to output
-  pinMode(MOTOR0_PWM_PINOUT, OUTPUT);
-  pinMode(MOTOR0_DIRECTIONA, OUTPUT);
-  pinMode(MOTOR0_DIRECTIONB, OUTPUT);
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    pinMode(motors[i].pwm_pin, OUTPUT);
+    pinMode(motors[i].directiona, OUTPUT);
+    pinMode(motors[i].directionb, OUTPUT);
+  }
 
-  //stop the motor
-  digitalWrite(motor0.directiona,LOW);
-  digitalWrite(motor0.directionb,LOW);
+  //stop the motors
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    stopMotor(motors[i]);
+  }
 
   //start the serial device
   Serial.begin(9600);
 
   //set the PID constants
-  setPIDConstants(motor0_pid_data, KP, KI, KD, INT_GUARD);
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    setPIDConstants(motor_pid_data[i], KP, KI, KD, INT_GUARD);
+  }
 
   //configure the timer interrupt
   TCCR1A = 0;
@@ -279,7 +309,6 @@ void setup() {
 } //end setup()
 
 void readKeyboard() {
-  static int counter = 0;
   int incomingByte = 0;
 
   if (Serial.available() > 0) {
@@ -287,41 +316,41 @@ void readKeyboard() {
 
     switch(incomingByte) {
       case ' ':
-        if (counter % 2 == 1) {
-          digitalWrite(motor0.directiona,LOW);
-          digitalWrite(motor0.directionb,LOW);
-          motor0.command_velocity = 0;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity = 0;
         }
-        else {
-          digitalWrite(motor0.directiona,HIGH);
-          digitalWrite(motor0.directionb,LOW);
-        }
-        counter ++;
         break;
 
       case ARROW_UP:
-        motor0.command_velocity += 0.2;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity += 0.2;
+        }
         break;
 
       case ARROW_DOWN:
-        motor0.command_velocity -= 0.2;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity -= 0.2;
+        }
         break;
 
       case ARROW_LEFT:
-        //moveMotor(motor0, -1);
-        motor0.command_velocity += 5.0;
-        counter = 1;
+        //moveMotor(motors[i], -1);
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity += 5.0;
+        }
         break;
 
       case ARROW_RIGHT:
-        //moveMotor(motor0, 1);
-        motor0.command_velocity -= 5.0;
-        counter = 1; //reset the counter so space to stop works correctly.
+        //moveMotor(motors[i], 1);
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity -= 5.0;
+        }
         break;
 
       case 'a':
-        motor0.command_velocity = 18.0;
-        counter = 1; //reset the counter so space to stop works correctly.
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].command_velocity = 18.0;
+        }
         break;
       default:
         break;
