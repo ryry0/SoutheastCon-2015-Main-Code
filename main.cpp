@@ -44,14 +44,15 @@
 
 #define NUM_MOTORS 4
 
-#define KP 2.269
-#define KI 18.4417
+#define KP 2.2690
+#define KI 18.4475
 #define KD 0
 #define INT_GUARD 1000
 
 //this is the number of ticks for CTC mode
-#define SAMPLE_RATE 1000 //Hz
-#define CTC_MATCH 16000 //*should* run the interrupt at 1kHz
+#define SAMPLE_RATE 200 //Hz
+#define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
+#define SAMPLE_TIME 0.005
 
 #define ARROW_UP    65
 #define ARROW_DOWN  66
@@ -68,8 +69,8 @@ Encoder  motor_encoders[NUM_MOTORS] = {
   Encoder(MOTOR2_ENCODER_A, MOTOR2_ENCODER_B),
   Encoder(MOTOR3_ENCODER_A, MOTOR3_ENCODER_B)
 };
+unsigned long time_begin, time_now, time_total;
 /* test variables
-   unsigned long time_begin, time_now, time_total;
    unsigned long display_count = 0;
    const int NUM_SAMPLES = 10;
    float velocity_samples[NUM_SAMPLES] = {0};
@@ -94,7 +95,7 @@ ISR(TIMER1_COMPA_vect) {
   //last sample time, then we convert that into radians. Then we divide that by
   //the timestep.
 
-  for (int i = 0; i < NUM_MOTORS; ++i) {
+  for (int i = 0; i < 4; ++i) {
     motors[i].encoder_value = motor_encoders[i].read();
 
     if (motors[i].encoder_value != 0) {
@@ -127,7 +128,7 @@ ISR(TIMER1_COMPA_vect) {
 
     //calculate PID
     current_error = motors[i].command_velocity - motors[i].current_velocity;
-    updatePID(motor_pid_data[i], current_error, .001);
+    updatePID(motor_pid_data[i], current_error, SAMPLE_TIME);
 
     motors[i].pwm = motor_pid_data[i].pid_output;
 
@@ -143,11 +144,11 @@ ISR(TIMER1_COMPA_vect) {
     analogWrite(motors[i].pwm_pin, motors[i].pwm);
   }
 
-  /*
   //profiling code
-  time_now = micros();
-  time_total = time_now - time_begin;
+  //time_now = micros();
+  //time_total = time_now - time_begin;
 
+  /*
   ++counter;
   counter = counter % NUM_SAMPLES;
   ++display_count;
@@ -174,6 +175,7 @@ int main() {
       Serial.print(motors[BACK_LEFT_MOTOR].current_velocity, 4);
       Serial.print("\t");
 
+      /*
       Serial.print(motor_pid_data[BACK_LEFT_MOTOR].previous_error, 4);
       Serial.print("\t");
 
@@ -181,9 +183,12 @@ int main() {
       Serial.print("\t");
 
       Serial.print(motors[BACK_LEFT_MOTOR].pwm, DEC);
+      */
       Serial.print("\n");
 
       prev_motor_velocity = motors[BACK_LEFT_MOTOR].current_velocity;
+       //Serial.print(time_total, DEC);
+       //Serial.print("\n");
     }
 
     /*
@@ -265,7 +270,7 @@ void setup() {
 
   //configure the timer interrupt
   TCCR1A = 0;
-  TCCR1B = NO_PRESCALING; //sets the prescaler to 1
+  TCCR1B = PRESCALE_8; //sets the prescaler to 1
   TCNT1  = 0;             //resets the timer
 
   OCR1A = CTC_MATCH;
