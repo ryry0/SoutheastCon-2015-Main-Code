@@ -28,10 +28,14 @@
 
 #include "Encoder.h"
 #include "PID.h"
+#include "motor.h"
 
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
 #define PRESCALE_64   0x03
+//this is how many sample rate ticks it takes
+//before the speed should be considered 0
+#define TIME_THRESHOLD 25
 
 #define PWM_SCALER (255/36.651)
 
@@ -74,16 +78,6 @@
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
-//structures
-struct motor {
-  int   pwm;              //its an int so overflow problems don't happen
-  char  pwm_pin;
-  char  directiona;
-  char  directionb;
-  long  encoder_value;
-  float command_velocity; //specified in rad/s
-  float current_velocity; //specified in rad/s
-};
 
 //variables
 motor    motor0;
@@ -100,8 +94,6 @@ Encoder  motor0_encoder(ENCODER0_A, ENCODER0_B);
 //function prototypes
 void setup();
 void readKeyboard();
-void timerInterrupt();
-void moveMotor(const motor &active_motor, const int direction);
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
@@ -111,7 +103,7 @@ ISR(TIMER1_COMPA_vect) {
   //1 per millisecond
   static long time_since_last_tick = 1;
 
-  time_begin = micros();
+  //time_begin = micros();
   //get the current velocity in rads/s
   //to get the current velocity, we get the number of encoder ticks since the
   //last sample time, then we convert that into radians. Then we divide that by
@@ -138,6 +130,9 @@ ISR(TIMER1_COMPA_vect) {
 
     motor0_encoder.write(0); //reset encoder count
     time_since_last_tick = 1;
+  }
+  else if (time_since_last_tick >= TIME_THRESHOLD) {
+    motor0.current_velocity = 0.0; //so much time has passed we're not moving
   }
   else {
     ++time_since_last_tick;
@@ -198,7 +193,7 @@ int main() {
       Serial.print("\t");
 
       Serial.print(motor0.pwm, DEC);
-      Serial.print("\t");
+      Serial.print("\n");
 
       prev_motor_velocity = motor0.current_velocity;
     }
@@ -322,14 +317,3 @@ void readKeyboard() {
     } //end switch
   } //end if
 } //end readKeyboard();
-
-void moveMotor(const motor &active_motor, const int direction) {
-  if (direction < 0) {
-    digitalWrite(active_motor.directiona,LOW);
-    digitalWrite(active_motor.directionb,HIGH);
-  }
-  else if (direction > 0) {
-    digitalWrite(active_motor.directiona,HIGH);
-    digitalWrite(active_motor.directionb,LOW);
-  }
-}
