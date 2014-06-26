@@ -29,6 +29,7 @@
 #include "Encoder.h"
 #include "PID.h"
 #include "motor.h"
+#include "motor_pins.h"
 
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
@@ -51,40 +52,6 @@
 //this is the number of ticks for CTC mode
 #define SAMPLE_RATE 1000 //Hz
 #define CTC_MATCH 16000 //*should* run the interrupt at 1kHz
-
-//Motor 0 Pins
-#define BACK_LEFT_MOTOR   0
-#define MOTOR0_PWM_PINOUT 4
-#define MOTOR0_DIRECTIONA 23 //I2
-#define MOTOR0_DIRECTIONB 22 //I1
-#define MOTOR0_ENCODER_A 2
-#define MOTOR0_ENCODER_B 3
-
-//Motor 1 Pins
-#define FRONT_LEFT_MOTOR  1
-#define MOTOR1_PWM_PINOUT 5
-#define MOTOR1_DIRECTIONA 25 //I4
-#define MOTOR1_DIRECTIONB 24 //I3
-#define MOTOR1_ENCODER_A 2
-#define MOTOR1_ENCODER_B 3
-
-//Motor 2 Pins
-#define FRONT_RIGHT_MOTOR 2
-#define MOTOR2_PWM_PINOUT 6
-#define MOTOR2_DIRECTIONA 51 //I2
-#define MOTOR2_DIRECTIONB 50 //I1
-#define MOTOR2_ENCODER_A 2
-#define MOTOR2_ENCODER_B 3
-
-//Motor 3 Pins
-#define BACK_RIGHT_MOTOR  3
-#define MOTOR3_PWM_PINOUT 7
-#define MOTOR3_DIRECTIONA 53 //I4
-#define MOTOR3_DIRECTIONB 52 //I3
-#define MOTOR3_ENCODER_A 2
-#define MOTOR3_ENCODER_B 3
-
-
 
 #define ARROW_UP    65
 #define ARROW_DOWN  66
