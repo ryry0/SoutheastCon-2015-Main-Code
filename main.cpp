@@ -6,6 +6,7 @@
  *
  * The timer interrupt uses the following formula
  * (16M/prescaler)/(desired frequency) = number of counts for CTC mode.
+ * (16M/8)/(200) = CTC_MATCH = 10000
  *
  * Motor Pinout:
  * Red    | motor power (connects to one motor terminal)
@@ -27,8 +28,8 @@
 #define ENCODER_USE_INTERRUPTS
 
 #include "Encoder.h"
-#include "PID.h"
 #include "motor.h"
+#include "PID.h"
 #include "motor_pins.h"
 
 #define NO_PRESCALING 0x01
@@ -44,8 +45,8 @@
 
 #define NUM_MOTORS 4
 
-#define KP 2.2690
-#define KI 18.4475
+#define KP 15 //10 //2.2690
+#define KI 25//18.4475
 #define KD 0
 #define INT_GUARD 1000
 
@@ -130,17 +131,17 @@ ISR(TIMER1_COMPA_vect) {
     current_error = motors[i].command_velocity - motors[i].current_velocity;
     updatePID(motor_pid_data[i], current_error, SAMPLE_TIME);
 
-    motors[i].pwm = motor_pid_data[i].pid_output;
-
-    if (motors[i].pwm < 0) {
-      motors[i].pwm = -motors[i].pwm;
-      setMotorDirection(motors[i], DIRECTION_1);
-    }
-    else {
-      setMotorDirection(motors[i], DIRECTION_2);
-    }
-
+    //pwm is absolute value of output
+    motors[i].pwm = round(fabs(motor_pid_data[i].pid_output));
     motors[i].pwm = constrain(motors[i].pwm, 0, 255);
+
+    //if output is < 0 switch directions
+    if (motor_pid_data[i].pid_output < 0)
+      setMotorDirection(motors[i], DIRECTION_1);
+    else
+      setMotorDirection(motors[i], DIRECTION_2);
+
+    //write to pwm
     analogWrite(motors[i].pwm_pin, motors[i].pwm);
   }
 
@@ -175,12 +176,13 @@ int main() {
       Serial.print(motors[BACK_LEFT_MOTOR].current_velocity, 4);
       Serial.print("\t");
 
+      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].pid_output, 4);
+      Serial.print("\t");
+
       /*
       Serial.print(motor_pid_data[BACK_LEFT_MOTOR].previous_error, 4);
       Serial.print("\t");
 
-      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].pid_output, 4);
-      Serial.print("\t");
 
       Serial.print(motors[BACK_LEFT_MOTOR].pwm, DEC);
       */
