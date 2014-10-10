@@ -60,6 +60,12 @@
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
+//robot specifications
+#define WHEEL_RADIUS 0.0508 //[m]
+#define LENGTH 0.1 //[m] length of chassis from front to back
+#define WIDTH 0.19 //[m] width of chassis from left to right
+const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
+const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
 //variables
 motor    motors[NUM_MOTORS];
@@ -81,6 +87,11 @@ unsigned long time_begin, time_now, time_total;
 //function prototypes
 void setup();
 void readKeyboard();
+
+//velocity computation functions
+//
+float computeVelocity(int wheelnum, const float &x_velocity,
+    const float &y_velocity, const float &ang_velocity); //for wheel 0
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
@@ -331,3 +342,30 @@ void readKeyboard() {
     } //end switch
   } //end if
 } //end readKeyboard();
+
+float computeVelocity(int wheelnum, const float &x_velocity,
+    const float &y_velocity, const float &ang_velocity) { //for wheel 0
+  float velocity = 0; //velocity of the wheel
+  switch(wheelnum) {
+    case 0:
+        velocity = inv_radius * (x_velocity + y_velocity -
+            pre_computed_LW2*ang_velocity);
+      break;
+
+    case 1:
+        velocity = inv_radius * (x_velocity - y_velocity -
+            pre_computed_LW2*ang_velocity);
+      break;
+
+    case 2:
+        velocity = inv_radius * (x_velocity + y_velocity +
+            pre_computed_LW2*ang_velocity);
+      break;
+
+    case 3:
+        velocity = inv_radius * (x_velocity - y_velocity +
+            pre_computed_LW2*ang_velocity);
+      break;
+  }
+  return velocity;
+}
