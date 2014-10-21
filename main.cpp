@@ -295,51 +295,50 @@ void setup() {
 
 void readKeyboard() {
   int incomingByte = 0;
+  static float x_vel, y_vel, ang_vel;
 
   if (Serial.available() > 0) {
     incomingByte = Serial.read();
 
     switch(incomingByte) {
       case ' ':
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity = 0;
-        }
+        x_vel = 0;
+        y_vel = 0;
+        ang_vel = 0;
         break;
 
       case ARROW_UP:
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity += 0.2;
-        }
+        x_vel += 0.2;
         break;
 
       case ARROW_DOWN:
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity -= 0.2;
-        }
+        x_vel -= 0.2;
         break;
 
       case ARROW_LEFT:
+        y_vel -= 0.2;
         //moveMotor(motors[i], -1);
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity += 5.0;
-        }
         break;
 
       case ARROW_RIGHT:
+        y_vel += 0.2;
         //moveMotor(motors[i], 1);
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity -= 5.0;
-        }
         break;
 
       case 'a':
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].command_velocity = 18.0;
-        }
+        ang_vel += 0.1;
+        break;
+
+      case 'd':
+        ang_vel -= 0.1;
         break;
       default:
         break;
     } //end switch
+
+    for (int i = 0; i < NUM_MOTORS; ++i) {
+      motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
+    }
   } //end if
 } //end readKeyboard();
 
