@@ -64,10 +64,17 @@
 #define WHEEL_RADIUS 0.0508 //[m]
 #define LENGTH 0.1 //[m] length of chassis from front to back
 #define WIDTH 0.19 //[m] width of chassis from left to right
+#define LINE_RES_SCALE 0.1
+//line response scaling. Takes the integer and scales it by this number
+
+static float x_vel, y_vel, ang_vel;
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
 const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
-//variables
+enum states_t  {STOPPED, FOLLOW_LINE};
+states_t robot_state = STOPPED;
+
+//motor variables
 motor    motors[NUM_MOTORS];
 pid_data motor_pid_data[NUM_MOTORS];
 Encoder  motor_encoders[NUM_MOTORS] = {
@@ -76,8 +83,9 @@ Encoder  motor_encoders[NUM_MOTORS] = {
   Encoder(MOTOR2_ENCODER_A, MOTOR2_ENCODER_B),
   Encoder(MOTOR3_ENCODER_A, MOTOR3_ENCODER_B)
 };
-unsigned long time_begin, time_now, time_total;
+
 /* test variables
+unsigned long time_begin, time_now, time_total;
    unsigned long display_count = 0;
    const int NUM_SAMPLES = 10;
    float velocity_samples[NUM_SAMPLES] = {0};
@@ -87,6 +95,7 @@ unsigned long time_begin, time_now, time_total;
 //function prototypes
 void setup();
 void readKeyboard();
+void readLineSensors();
 
 //velocity computation functions
 //
@@ -178,59 +187,25 @@ int main() {
 
   while (1) {
     readKeyboard();
+    readLineSensors();
 
-    //testing stuff
-    if (motors[BACK_LEFT_MOTOR].current_velocity != prev_motor_velocity) {
-      Serial.print(motors[BACK_LEFT_MOTOR].command_velocity, 4);
-      Serial.print("\t");
-
-      Serial.print(motors[BACK_LEFT_MOTOR].current_velocity, 4);
-      Serial.print("\t");
-
-      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].pid_output, 4);
-      Serial.print("\t");
-
-      /*
-      Serial.print(motor_pid_data[BACK_LEFT_MOTOR].previous_error, 4);
-      Serial.print("\t");
-
-
-      Serial.print(motors[BACK_LEFT_MOTOR].pwm, DEC);
-      */
-      Serial.print("\n");
-
-      prev_motor_velocity = motors[BACK_LEFT_MOTOR].current_velocity;
-       //Serial.print(time_total, DEC);
-       //Serial.print("\n");
+    for (int i = 0; i < NUM_MOTORS; ++i) { //compute motors on every iteration
+      motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
     }
 
-    /*
-       if (display_count > 100) {
-       plot_time_now = millis();
-       Serial.print(plot_time_now, 4);
-       Serial.print("\t");
+    if (robot_state == FOLLOW_LINE) {
+      Serial.print("LINE");
+    }
+    else {
+      Serial.print("STOP");
+    }
+    Serial.print("\tx_vel: ");
+    Serial.print(x_vel, 4);
+    Serial.print("\t");
 
-       Serial.print(motor0.command_velocity, 4);
-       Serial.print("\t");
-
-       Serial.print(motor0.current_velocity, 4);
-       Serial.print("\t");
-
-       Serial.print(avg_velocity, 4);
-       Serial.print("\n");
-       Serial.print(time_total, DEC);
-       Serial.print("\n");
-
-       display_count = 0;
-
-       }
-
-       if (motor0.encoder_value != prev_encoder_value) {
-       prev_encoder_value = motor0.encoder_value;
-       Serial.print(motor0.encoder_value, DEC);
-       Serial.print("\n");
-       }
-       */
+    Serial.print("y_vel: ");
+    Serial.print(y_vel, 4);
+    Serial.print("\n");
   }
   return 0;
 } //end main()
@@ -275,6 +250,7 @@ void setup() {
 
   //start the serial device
   Serial.begin(9600);
+  Serial3.begin(9600);
 
   //set the PID constants
   for (int i = 0; i < NUM_MOTORS; ++i) {
@@ -294,53 +270,67 @@ void setup() {
 } //end setup()
 
 void readKeyboard() {
-  int incomingByte = 0;
-  static float x_vel, y_vel, ang_vel;
+  char incomingByte = 0;
 
+  //read the serial
   if (Serial.available() > 0) {
     incomingByte = Serial.read();
 
     switch(incomingByte) {
-      case ' ':
+      case ' ': //stop line following
         x_vel = 0;
         y_vel = 0;
         ang_vel = 0;
+        robot_state = STOPPED;
         break;
 
-      case ARROW_UP:
-        x_vel += 0.2;
+      case 'A': //start
+        robot_state = FOLLOW_LINE;
         break;
 
-      case ARROW_DOWN:
-        x_vel -= 0.2;
-        break;
-
-      case ARROW_LEFT:
-        y_vel -= 0.2;
-        //moveMotor(motors[i], -1);
-        break;
-
-      case ARROW_RIGHT:
-        y_vel += 0.2;
-        //moveMotor(motors[i], 1);
-        break;
-
-      case 'a':
-        ang_vel += 0.1;
-        break;
-
-      case 'd':
-        ang_vel -= 0.1;
-        break;
       default:
         break;
     } //end switch
-
-    for (int i = 0; i < NUM_MOTORS; ++i) {
-      motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
-    }
   } //end if
 } //end readKeyboard();
+
+//this deals with reading the slave arduino's line sensors
+void readLineSensors() {
+  char incomingByte = 0;
+  //data comes in as [x or y][speed], so
+  //this char tells me what came first
+  static char velocity_id = 0;
+
+  //read the serial
+  if(robot_state == FOLLOW_LINE) {
+    if (Serial3.available() > 0) {
+      incomingByte = Serial3.read();
+
+      switch(incomingByte) {
+        case 'X':
+        case 'Y':
+        case 'B':
+          //while(Serial3.available() == 0);//spin until next byte
+          velocity_id = incomingByte;
+          break;
+        default:
+          switch(velocity_id) {
+            case 'X':
+              x_vel = incomingByte;
+              break;
+
+            case 'Y':
+              y_vel = incomingByte;
+              break;
+            default:
+              break;
+          }
+          velocity_id = 0;
+          break;
+      } //end switch
+    } //end if
+  }
+} //end readLineSensors();
 
 float computeVelocity(int wheelnum, const float &x_velocity,
     const float &y_velocity, const float &ang_velocity) { //for wheel 0
