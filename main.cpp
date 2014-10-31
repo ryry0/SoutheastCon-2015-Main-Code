@@ -32,6 +32,7 @@
 #include "PID.h"
 #include "motor_pins.h"
 
+#define RESET_PIN 33
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
 #define PRESCALE_64   0x03
@@ -45,7 +46,7 @@
 
 #define NUM_MOTORS 4
 
-#define KP 15 //10 //2.2690
+#define KP 0.2 //15 //10 //2.2690
 #define KI 25//18.4475
 #define KD 0
 #define INT_GUARD 1000
@@ -64,10 +65,10 @@
 #define WHEEL_RADIUS 0.0508 //[m]
 #define LENGTH 0.1 //[m] length of chassis from front to back
 #define WIDTH 0.19 //[m] width of chassis from left to right
-#define LINE_RES_SCALE 0.1
+#define LINE_RES_SCALE 0.01
 //line response scaling. Takes the integer and scales it by this number
 
-static float x_vel, y_vel, ang_vel;
+float x_vel = 0, y_vel = 0, ang_vel = 0;
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
 const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
@@ -192,7 +193,6 @@ int main() {
     for (int i = 0; i < NUM_MOTORS; ++i) { //compute motors on every iteration
       motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
     }
-
     if (robot_state == FOLLOW_LINE) {
       Serial.print("LINE");
     }
@@ -205,6 +205,13 @@ int main() {
 
     Serial.print("y_vel: ");
     Serial.print(y_vel, 4);
+    /*
+    Serial.print("\t");
+    for (int i = 0; i < NUM_MOTORS; ++i) {
+      Serial.print(motors[i].command_velocity, 4);
+      Serial.print("\t");
+    }
+    */
     Serial.print("\n");
   }
   return 0;
@@ -242,6 +249,10 @@ void setup() {
     pinMode(motors[i].directiona, OUTPUT);
     pinMode(motors[i].directionb, OUTPUT);
   }
+
+  pinMode(RESET_PIN, OUTPUT);
+
+  digitalWrite(RESET_PIN, LOW);
 
   //stop the motors
   for (int i = 0; i < NUM_MOTORS; ++i) {
@@ -284,8 +295,34 @@ void readKeyboard() {
         robot_state = STOPPED;
         break;
 
-      case 'A': //start
+      case 'F': //start
         robot_state = FOLLOW_LINE;
+        digitalWrite(RESET_PIN, LOW);
+        for (int i = 0; i < 100; ++i);
+        digitalWrite(RESET_PIN, HIGH);
+        break;
+
+      case 'w':
+        x_vel += 0.1;
+        break;
+
+      case 's':
+        x_vel -= 0.1;
+        break;
+
+      case 'a':
+        y_vel -= 0.1;
+        break;
+
+      case 'd':
+        y_vel += 0.1;
+        break;
+
+      case ARROW_LEFT:
+        ang_vel -= .3;
+        break;
+      case ARROW_RIGHT:
+        ang_vel += .3;
         break;
 
       default:
@@ -316,15 +353,26 @@ void readLineSensors() {
         default:
           switch(velocity_id) {
             case 'X':
-              x_vel = incomingByte;
+              x_vel = incomingByte * LINE_RES_SCALE;
               break;
 
             case 'Y':
-              y_vel = incomingByte;
+              y_vel = incomingByte * LINE_RES_SCALE;
               break;
+
             default:
               break;
           }
+          /*
+          Serial.print(velocity_id);
+          Serial.print("\t");
+          Serial.print((int)incomingByte);
+          Serial.print("\t");
+          Serial.print(x_vel, 4);
+          Serial.print("\t");
+          Serial.print(y_vel, 4);
+          Serial.print("\n");
+          */
           velocity_id = 0;
           break;
       } //end switch
