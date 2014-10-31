@@ -292,6 +292,15 @@ void readKeyboard() {
         x_vel = 0;
         y_vel = 0;
         ang_vel = 0;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].pwm = 0;
+          motors[i].command_velocity = 0;
+          motors[i].current_velocity= 0;
+          motor_pid_data[i].pid_output = 0;
+          motor_pid_data[i].previous_error = 0;
+          motor_pid_data[i].integral_error = 0;
+          stopMotor(motors[i]);
+        }
         robot_state = STOPPED;
         break;
 
