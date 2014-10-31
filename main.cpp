@@ -183,6 +183,10 @@ int main() {
   long  prev_encoder_value = 0;
   long  plot_time_now, plot_time_prev;
 
+  float prev_x_vel = 0, prev_y_vel = 0;
+
+  states_t prev_state = STOPPED;
+
   init();
   setup();
 
@@ -193,26 +197,33 @@ int main() {
     for (int i = 0; i < NUM_MOTORS; ++i) { //compute motors on every iteration
       motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
     }
-    if (robot_state == FOLLOW_LINE) {
-      Serial.print("LINE");
-    }
-    else {
-      Serial.print("STOP");
-    }
-    Serial.print("\tx_vel: ");
-    Serial.print(x_vel, 4);
-    Serial.print("\t");
-
-    Serial.print("y_vel: ");
-    Serial.print(y_vel, 4);
-    /*
-    Serial.print("\t");
-    for (int i = 0; i < NUM_MOTORS; ++i) {
-      Serial.print(motors[i].command_velocity, 4);
+    if ((prev_state != robot_state) ||
+        (prev_x_vel != x_vel) ||
+        (prev_y_vel != y_vel)) {
+      if (robot_state == FOLLOW_LINE) {
+        Serial.print("LINE");
+      }
+      else {
+        Serial.print("STOP");
+      }
+      Serial.print("\tx_vel: ");
+      Serial.print(x_vel, 4);
       Serial.print("\t");
+
+      Serial.print("y_vel: ");
+      Serial.print(y_vel, 4);
+      /*
+         Serial.print("\t");
+         for (int i = 0; i < NUM_MOTORS; ++i) {
+         Serial.print(motors[i].command_velocity, 4);
+         Serial.print("\t");
+         }
+         */
+      Serial.print("\n");
+      prev_x_vel = x_vel;
+      prev_y_vel = y_vel;
+      prev_state = robot_state;
     }
-    */
-    Serial.print("\n");
   }
   return 0;
 } //end main()
