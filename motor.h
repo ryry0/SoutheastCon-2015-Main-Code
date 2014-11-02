@@ -11,6 +11,7 @@ struct motor {
   long  encoder_value;
   float command_velocity; //specified in rad/s
   float current_velocity; //specified in rad/s
+  float command_position; //specified in encoder ticks
 };
 
 void moveMotor(const motor &active_motor) {

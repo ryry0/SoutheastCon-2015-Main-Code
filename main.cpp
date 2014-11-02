@@ -45,10 +45,12 @@
 #define TICKS_PER_REVOLUTION 1920
 
 #define NUM_MOTORS 4
+#define ACTIVE_MOTORS 4
 
-#define KP 0.2 //15 //10 //2.2690
-#define KI 25//18.4475
-#define KD 0
+//small since not scaled by time
+#define KP .7 //1//15 //10 //2.2690
+#define KI 0 //18.4475
+#define KD 10 //0.01
 #define INT_GUARD 1000
 
 //this is the number of ticks for CTC mode
@@ -105,52 +107,15 @@ float computeVelocity(int wheelnum, const float &x_velocity,
 
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
-  //static int counter = 0;
   float current_error;
-  //time since last tick is used when the encoder creates pulses slower than
-  //1 per millisecond
-  static long time_since_last_tick[NUM_MOTORS] = {1, 1, 1, 1};
-
   //time_begin = micros();
-  //get the current velocity in rads/s
-  //to get the current velocity, we get the number of encoder ticks since the
-  //last sample time, then we convert that into radians. Then we divide that by
-  //the timestep.
 
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < NUM_MOTORS; ++i) {
     motors[i].encoder_value = motor_encoders[i].read();
 
-    if (motors[i].encoder_value != 0) {
-      /*
-       * current_velocity =           num_ticks * 2PI
-       *                    __________________________________ * sample_rate
-       *                    ticks/rev * millis_since_last_tick
-       */
-      motors[i].current_velocity = ( ((float) motors[i].encoder_value * 2*PI)/
-          ((float) TICKS_PER_REVOLUTION * (float) time_since_last_tick[i]) ) *
-        (float) SAMPLE_RATE;
-
-      /* averaging code
-         velocity_samples[counter] = motor0.current_velocity;
-         for (int i = 0; i < NUM_SAMPLES; ++i) {
-         avg_velocity += velocity_samples[i];
-         }
-         avg_velocity = avg_velocity/NUM_SAMPLES;
-         */
-
-      motor_encoders[i].write(0); //reset encoder count
-      time_since_last_tick[i] = 1;
-    }
-    else if (time_since_last_tick[i] >= TIME_THRESHOLD) {
-      motors[i].current_velocity = 0.0; //so much time has passed we're not moving
-    }
-    else {
-      ++time_since_last_tick[i];
-    }
-
     //calculate PID
-    current_error = motors[i].command_velocity - motors[i].current_velocity;
-    updatePID(motor_pid_data[i], current_error, SAMPLE_TIME);
+    current_error = motors[i].command_position - motors[i].encoder_value;
+    fixedUpdatePID(motor_pid_data[i], current_error);
 
     //pwm is absolute value of output
     motors[i].pwm = round(fabs(motor_pid_data[i].pid_output));
@@ -165,16 +130,6 @@ ISR(TIMER1_COMPA_vect) {
     //write to pwm
     analogWrite(motors[i].pwm_pin, motors[i].pwm);
   }
-
-  //profiling code
-  //time_now = micros();
-  //time_total = time_now - time_begin;
-
-  /*
-  ++counter;
-  counter = counter % NUM_SAMPLES;
-  ++display_count;
-  */
 } //end interrupt handler
 
 //main
@@ -192,38 +147,17 @@ int main() {
 
   while (1) {
     readKeyboard();
-    readLineSensors();
-
-    for (int i = 0; i < NUM_MOTORS; ++i) { //compute motors on every iteration
-      motors[i].command_velocity = computeVelocity(i, x_vel, y_vel, ang_vel);
-    }
-    if ((prev_state != robot_state) ||
-        (prev_x_vel != x_vel) ||
-        (prev_y_vel != y_vel)) {
-      if (robot_state == FOLLOW_LINE) {
-        Serial.print("LINE");
-      }
-      else {
-        Serial.print("STOP");
-      }
-      Serial.print("\tx_vel: ");
-      Serial.print(x_vel, 4);
-      Serial.print("\t");
-
-      Serial.print("y_vel: ");
-      Serial.print(y_vel, 4);
-      /*
-         Serial.print("\t");
-         for (int i = 0; i < NUM_MOTORS; ++i) {
-         Serial.print(motors[i].command_velocity, 4);
-         Serial.print("\t");
-         }
-         */
+    /*
+    if (prev_encoder_value != motors[BACK_LEFT_MOTOR].encoder_value) {
+      Serial.print("com val: ");
+      Serial.print(motors[BACK_LEFT_MOTOR].command_position, 4);
+      Serial.print(" pos val: ");
+      Serial.print(motors[BACK_LEFT_MOTOR].encoder_value);
       Serial.print("\n");
-      prev_x_vel = x_vel;
-      prev_y_vel = y_vel;
-      prev_state = robot_state;
+
+      prev_encoder_value = motors[BACK_LEFT_MOTOR].encoder_value;
     }
+    */
   }
   return 0;
 } //end main()
@@ -270,7 +204,7 @@ void setup() {
     stopMotor(motors[i]);
   }
 
-  //start the serial device
+  //start the serial devices
   Serial.begin(9600);
   Serial3.begin(9600);
 
@@ -305,8 +239,9 @@ void readKeyboard() {
         ang_vel = 0;
         for (int i = 0; i < NUM_MOTORS; ++i) {
           motors[i].pwm = 0;
-          motors[i].command_velocity = 0;
-          motors[i].current_velocity= 0;
+          motors[i].command_position = 0;
+          motors[i].encoder_value = 0;
+          motor_encoders[i].write(0);
           motor_pid_data[i].pid_output = 0;
           motor_pid_data[i].previous_error = 0;
           motor_pid_data[i].integral_error = 0;
@@ -322,20 +257,40 @@ void readKeyboard() {
         digitalWrite(RESET_PIN, HIGH);
         break;
 
-      case 'w':
-        x_vel += 0.1;
-        break;
-
-      case 's':
-        x_vel -= 0.1;
+      case 'q':
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position += 50;
+        }
         break;
 
       case 'a':
-        y_vel -= 0.1;
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position -= 50;
+        }
+        break;
+
+      case 'w':
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position += 100;
+        }
+        break;
+
+      case 's':
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position -= 100;
+        }
+        break;
+
+      case 'e':
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position += 500;
+        }
         break;
 
       case 'd':
-        y_vel += 0.1;
+        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
+          motors[i].command_position -= 500;
+        }
         break;
 
       case ARROW_LEFT:
