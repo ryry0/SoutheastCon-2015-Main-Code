@@ -67,7 +67,7 @@
 #define WHEEL_RADIUS 0.0508 //[m]
 #define LENGTH 0.1 //[m] length of chassis from front to back
 #define WIDTH 0.19 //[m] width of chassis from left to right
-#define LINE_RES_SCALE 0.01
+#define LINE_RES_SCALE 0.002
 //line response scaling. Takes the integer and scales it by this number
 
 float x_vel = 0, y_vel = 0, ang_vel = 0;
@@ -113,6 +113,9 @@ ISR(TIMER1_COMPA_vect) {
   for (int i = 0; i < NUM_MOTORS; ++i) {
     motors[i].encoder_value = motor_encoders[i].read();
 
+    //calculate new position based on velocity
+    motors[i].command_position += SAMPLE_TIME * motors[i].command_velocity;
+
     //calculate PID
     current_error = motors[i].command_position - motors[i].encoder_value;
     fixedUpdatePID(motor_pid_data[i], current_error);
@@ -147,17 +150,34 @@ int main() {
 
   while (1) {
     readKeyboard();
-    /*
-    if (prev_encoder_value != motors[BACK_LEFT_MOTOR].encoder_value) {
-      Serial.print("com val: ");
-      Serial.print(motors[BACK_LEFT_MOTOR].command_position, 4);
-      Serial.print(" pos val: ");
-      Serial.print(motors[BACK_LEFT_MOTOR].encoder_value);
+    readLineSensors();
+
+    for (int i = 0; i < NUM_MOTORS; ++i) {
+      motors[i].command_velocity =
+        (960*computeVelocity(i, x_vel, y_vel, ang_vel))/PI;
+    }
+
+    if ((prev_state != robot_state) ||
+        (prev_x_vel != x_vel) ||
+        (prev_y_vel != y_vel)) {
+
+      if (robot_state == FOLLOW_LINE)
+        Serial.print("LINE");
+      else
+        Serial.print("STOP");
+
+      Serial.print("\tx_vel: ");
+      Serial.print(x_vel, 4);
+      Serial.print("\t");
+
+      Serial.print("\ty_vel: ");
+      Serial.print(y_vel, 4);
       Serial.print("\n");
 
-      prev_encoder_value = motors[BACK_LEFT_MOTOR].encoder_value;
+      prev_x_vel = x_vel;
+      prev_y_vel = y_vel;
+      prev_state = robot_state;
     }
-    */
   }
   return 0;
 } //end main()
@@ -240,6 +260,7 @@ void readKeyboard() {
         for (int i = 0; i < NUM_MOTORS; ++i) {
           motors[i].pwm = 0;
           motors[i].command_position = 0;
+          motors[i].command_velocity = 0;
           motors[i].encoder_value = 0;
           motor_encoders[i].write(0);
           motor_pid_data[i].pid_output = 0;
@@ -257,46 +278,27 @@ void readKeyboard() {
         digitalWrite(RESET_PIN, HIGH);
         break;
 
-      case 'q':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position += 50;
-        }
-        break;
-
-      case 'a':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position -= 50;
-        }
-        break;
-
       case 'w':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position += 100;
-        }
+        x_vel += 0.1;
         break;
 
       case 's':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position -= 100;
-        }
+        x_vel -= 0.1;
         break;
 
-      case 'e':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position += 500;
-        }
+      case 'a':
+        y_vel -= 0.1;
         break;
 
       case 'd':
-        for (int i = 0; i < ACTIVE_MOTORS; ++i) {
-          motors[i].command_position -= 500;
-        }
+        y_vel += 0.1;
         break;
 
-      case ARROW_LEFT:
+      case 'e':
         ang_vel -= .3;
         break;
-      case ARROW_RIGHT:
+
+      case 'q':
         ang_vel += .3;
         break;
 
