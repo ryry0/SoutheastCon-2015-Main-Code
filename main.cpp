@@ -47,6 +47,7 @@
 
 #define NUM_MOTORS 4
 #define ACTIVE_MOTORS 4
+#define REVERSE_SCALING 0.8 //HACK FIX, (USE ENCODER DECODERS?)
 
 //small since not scaled by time
 #define KP .7 //1//15 //10 //2.2690
@@ -64,11 +65,14 @@
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
+#define PACKET_LENGTH 5
+#define LINE_PACKET_HEADER 0xFF
+
 //robot specifications
 #define WHEEL_RADIUS 0.0508 //[m]
 #define LENGTH 0.1 //[m] length of chassis from front to back
 #define WIDTH 0.19 //[m] width of chassis from left to right
-#define LINE_RES_SCALE 1 //0.002
+#define LINE_RES_SCALE 0.002
 //line response scaling. Takes the integer and scales it by this number
 
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
@@ -98,7 +102,7 @@ Encoder  motor_encoders[NUM_MOTORS] = {
 //function prototypes
 void setup();
 void readKeyboard(movement_vector_t &movement_vector, states_t &state);
-void readLineSensors(movement_vector_t &movement_vector);
+bool readLineSensors(movement_vector_t &movement_vector);
 
 //velocity computation functions
 float computeVelocity(const int wheelnum,
@@ -163,7 +167,10 @@ int main() {
     //state machine
     switch(robot_state) {
       case FOLLOW_LINE:
-        readLineSensors(movement_vector);
+        //read line sensors will ask for data when nothing is on the line,
+        //or when the first byte it reads is not 0xFF
+        if (readLineSensors(movement_vector))
+          Serial3.write(' ');
         break;
 
       default:
@@ -174,7 +181,20 @@ int main() {
     for (int i = 0; i < NUM_MOTORS; ++i) {
       motors[i].command_velocity =
         (960*computeVelocity(i, movement_vector))/PI;
+      if (motors[i].command_velocity < 0)
+        motors[i].command_velocity *= REVERSE_SCALING;
     }//scale the velocity into ticks per second
+
+/*
+    Serial.print(motors[0].encoder_value);
+    Serial.print("\t");
+    Serial.print(motors[1].encoder_value);
+    Serial.print("\t");
+    Serial.print(motors[2].encoder_value);
+    Serial.print("\t");
+    Serial.print(motors[3].encoder_value);
+    Serial.print("\n");
+*/
 
     //DEBUGGING CODE
 #ifdef SERIAL_DEBUG
@@ -309,6 +329,9 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
         state = FOLLOW_LINE;
         digitalWrite(RESET_PIN, LOW);
         for (int i = 0; i < 100; ++i);
+        digitalWrite(RESET_PIN, HIGH); //HACK FIX: FIND BETTER SOLUTION
+        digitalWrite(RESET_PIN, LOW);
+        for (int i = 0; i < 100; ++i);
         digitalWrite(RESET_PIN, HIGH);
         break;
 
@@ -343,50 +366,55 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 } //end readKeyboard();
 
 //this deals with reading the slave arduino's line sensors
-void readLineSensors(movement_vector_t &movement_vector) {
+//readLineSensors returns whether or not the Request packet should be resent
+bool readLineSensors(movement_vector_t &movement_vector) {
   char incoming_byte = 0;
-  //data comes in as [x or y][speed], so
-  //this char tells me what came first
-  static char velocity_id = 0;
+  static char bytes_read = 0;
+  bool request_packet = false; //if I received the correct header
+  //first byte read should be 0xFF, then the rest are y, x, o, i.
 
   //read the serial
   if (Serial3.available() > 0) {
     incoming_byte = Serial3.read();
 
-    switch(incoming_byte) {
-      case 'X':
-      case 'Y':
-      case 'B':
-      case 'O':
-      case 'I':
-        //while(Serial3.available() == 0);//spin until next byte
-        velocity_id = incoming_byte;
+    switch(bytes_read) { //switch case tells which byte to assign to
+      case 0:
+        if ((unsigned char) incoming_byte != LINE_PACKET_HEADER)
+          request_packet = true;
         break;
+
+      case 1:
+        movement_vector.y_velocity = incoming_byte * LINE_RES_SCALE;
+        break;
+
+      case 2:
+        movement_vector.x_velocity = incoming_byte * LINE_RES_SCALE;
+        break;
+
+      case 3:
+        outer_sensors = incoming_byte;
+        break;
+
+      case 4:
+        inner_sensor = incoming_byte;
+        break;
+
       default:
-        switch(velocity_id) {
-          case 'X':
-            movement_vector.x_velocity = incoming_byte * LINE_RES_SCALE;
-            break;
-
-          case 'Y':
-            movement_vector.y_velocity = incoming_byte * LINE_RES_SCALE;
-            break;
-
-          case 'O':
-            outer_sensors = incoming_byte;
-            break;
-
-          case 'I':
-            inner_sensor = incoming_byte;
-            break;
-
-          default:
-            break;
-        }
-        velocity_id = 0; //reset velocity ID
         break;
     } //end switch
+
+    bytes_read++;
+    if (bytes_read >= PACKET_LENGTH) //reset bytes_read
+      bytes_read = 0;
+
+    if (request_packet == true) //reset bytes_read when resending packet
+      bytes_read = 0;
   }
+  else {
+    request_packet = true;
+  }
+
+  return request_packet; //return whether we need to resend the packet or not
 } //end readLineSensors();
 
 float computeVelocity(const int wheelnum,
