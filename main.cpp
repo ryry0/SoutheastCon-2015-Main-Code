@@ -65,7 +65,7 @@
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
-#define PACKET_LENGTH 5
+#define PACKET_LENGTH 7
 #define LINE_PACKET_HEADER 0xFF
 
 //robot specifications
@@ -87,7 +87,7 @@ struct movement_vector_t {
 };
 
 //variables that hold debugging data about line following sensors
-unsigned char outer_sensors = 0, inner_sensor = 0;
+unsigned char outer_sensors = 0, inner_sensor = 0, line_mini_state = 0;
 
 //global motor variables
 motor    motors[NUM_MOTORS]; //struct of variables dealing with motors
@@ -200,13 +200,13 @@ int main() {
 #ifdef SERIAL_DEBUG
     readKeyboard(movement_vector, robot_state);
     if ((prev_state != robot_state) ||
-        (prev_x_vel != movement_vector.x_velocity) ||
+        //(prev_x_vel != movement_vector.x_velocity) ||
         (prev_y_vel != movement_vector.y_velocity) ||
         (prev_inner_sensor != inner_sensor) ||
         (prev_outer_sensors != outer_sensors )) {
 
       if (robot_state == FOLLOW_LINE)
-        Serial.print("LINE");
+        Serial.print((char) line_mini_state);
       else
         Serial.print("STOP");
 
@@ -392,10 +392,18 @@ bool readLineSensors(movement_vector_t &movement_vector) {
         break;
 
       case 3:
-        outer_sensors = incoming_byte;
+        movement_vector.angular_velocity = incoming_byte * LINE_RES_SCALE;
         break;
 
       case 4:
+        line_mini_state = incoming_byte;
+        break;
+
+      case 5:
+        outer_sensors = incoming_byte;
+        break;
+
+      case 6:
         inner_sensor = incoming_byte;
         break;
 
