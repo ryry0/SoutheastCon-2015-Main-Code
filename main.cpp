@@ -28,12 +28,12 @@
 #define ENCODER_USE_INTERRUPTS
 #define SERIAL_DEBUG
 
-#include "Encoder.h"
+//#include "Encoder.h"
 #include "motor.h"
 #include "PID.h"
 #include "motor_pins.h"
 
-#define RESET_PIN 33
+#define RESET_PIN 21
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
 #define PRESCALE_64   0x03
@@ -65,14 +65,14 @@
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
-#define PACKET_LENGTH 7
+#define PACKET_LENGTH 4//7
 #define LINE_PACKET_HEADER 0xFF
 
 //robot specifications
 #define WHEEL_RADIUS 0.0508 //[m]
 #define LENGTH 0.1 //[m] length of chassis from front to back
 #define WIDTH 0.19 //[m] width of chassis from left to right
-#define LINE_RES_SCALE 0.002
+#define LINE_RES_SCALE 0.005
 //line response scaling. Takes the integer and scales it by this number
 
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
@@ -92,12 +92,15 @@ unsigned char outer_sensors = 0, inner_sensor = 0, line_mini_state = 0;
 //global motor variables
 motor    motors[NUM_MOTORS]; //struct of variables dealing with motors
 pid_data motor_pid_data[NUM_MOTORS]; //struct of data dealing with PID
+/*
 Encoder  motor_encoders[NUM_MOTORS] = {
   Encoder(MOTOR0_ENCODER_A, MOTOR0_ENCODER_B),
   Encoder(MOTOR1_ENCODER_A, MOTOR1_ENCODER_B),
   Encoder(MOTOR2_ENCODER_A, MOTOR2_ENCODER_B),
   Encoder(MOTOR3_ENCODER_A, MOTOR3_ENCODER_B)
 };
+*/
+volatile int motor_encoders[NUM_MOTORS];
 
 //function prototypes
 void setup();
@@ -108,12 +111,27 @@ bool readLineSensors(movement_vector_t &movement_vector);
 float computeVelocity(const int wheelnum,
     const movement_vector_t &movement_vector);
 
+//port B interrupt vector
+ISR(PCINT2_vect) {
+  static const int8_t rot_states[] = //lookup table of rotation states
+  {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+  static uint8_t AB[2] = {0x03, 0x03};
+  uint8_t t = PINK;  // read port status
+
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    // check for rotary state change button1
+    AB[i] <<= 2;                  // save previous state
+    AB[i] |= (t >> 2*i) & 0x03;     // add current state
+    motor_encoders[i] += rot_states[AB[i] & 0x0f];
+  }
+}
+
 //interrupt handler for the timer compare
 ISR(TIMER1_COMPA_vect) {
   float current_error;
 
   for (int i = 0; i < NUM_MOTORS; ++i) {
-    motors[i].encoder_value = motor_encoders[i].read();
+    motors[i].encoder_value = motor_encoders[i];
 
     //calculate new position based on velocity
     motors[i].command_position += SAMPLE_TIME * motors[i].command_velocity;
@@ -156,7 +174,7 @@ int main() {
      */
   unsigned char prev_inner_sensor = 0, prev_outer_sensors = 0;
   states_t prev_state = STOPPED;
-  float prev_x_vel = 0, prev_y_vel = 0;
+  float prev_x_vel = 0, prev_y_vel = 0, prev_ang_vel = 0;
 #endif
 
   init();
@@ -181,8 +199,6 @@ int main() {
     for (int i = 0; i < NUM_MOTORS; ++i) {
       motors[i].command_velocity =
         (960*computeVelocity(i, movement_vector))/PI;
-      if (motors[i].command_velocity < 0)
-        motors[i].command_velocity *= REVERSE_SCALING;
     }//scale the velocity into ticks per second
 
 /*
@@ -202,6 +218,7 @@ int main() {
     if ((prev_state != robot_state) ||
         //(prev_x_vel != movement_vector.x_velocity) ||
         (prev_y_vel != movement_vector.y_velocity) ||
+        (prev_ang_vel != movement_vector.angular_velocity) ||
         (prev_inner_sensor != inner_sensor) ||
         (prev_outer_sensors != outer_sensors )) {
 
@@ -216,16 +233,22 @@ int main() {
 
       Serial.print("\ty_vel: ");
       Serial.print(movement_vector.y_velocity, 4);
-      //Serial.print("\n");
 
+      Serial.print("\tang_vel: ");
+      Serial.print(movement_vector.angular_velocity, 4);
+      Serial.print("\n");
+
+      /*
       Serial.print(" O ");
       Serial.print(outer_sensors);
       Serial.print(" I ");
       Serial.print(inner_sensor);
       Serial.print("\n");
+      */
 
       prev_x_vel = movement_vector.x_velocity;
       prev_y_vel = movement_vector.y_velocity;
+      prev_ang_vel = movement_vector.angular_velocity;
       prev_state = robot_state;
       prev_inner_sensor = inner_sensor;
       prev_outer_sensors = outer_sensors;
@@ -296,6 +319,21 @@ void setup() {
   TCCR1B |= (0x01 << WGM12);  //enables CTC mode
   TIMSK1 |= (0x01 << OCIE1A); //enables the interrupt CTC interrupt
 
+  /////////////////////////////////////////////////////
+  //set encoder pins to input
+  DDRK = 0x00;
+
+  // enable pullup for encoder pins
+  PORTK |= _BV(PORTK7) | _BV(PORTK6) | _BV(PORTK5) |
+    _BV(PORTK4) | _BV(PORTK3) | _BV(PORTK2) |
+    _BV(PORTK1) | _BV(PORTK0);
+
+  // enable button pin change interrupt
+  PCMSK2 = _BV(PCINT16) | _BV(PCINT17) | _BV(PCINT18) | _BV(PCINT19) |
+    _BV(PCINT20) | _BV(PCINT21) | _BV(PCINT22) | _BV(PCINT23);
+  PCICR = _BV(PCIE2);  // K-port interrupt enable
+  /////////////////////////////////////////////////////
+
   interrupts();
 } //end setup()
 
@@ -316,7 +354,7 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
           motors[i].command_position = 0;
           motors[i].command_velocity = 0;
           motors[i].encoder_value = 0;
-          motor_encoders[i].write(0);
+          motor_encoders[i] = 0;
           motor_pid_data[i].pid_output = 0;
           motor_pid_data[i].previous_error = 0;
           motor_pid_data[i].integral_error = 0;
