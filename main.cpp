@@ -35,6 +35,8 @@
 #include "motor_pins.h"
 
 #define RESET_PIN 48
+#define LED_PIN 8
+
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
 #define PRESCALE_64   0x03
@@ -62,12 +64,14 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
+#define GAME_TIMEOUT 4000 //time to wait for the game to complete in ms
+
 #define ARROW_UP    65
 #define ARROW_DOWN  66
 #define ARROW_LEFT  67
 #define ARROW_RIGHT 68
 
-#define PACKET_LENGTH 6//7
+#define PACKET_LENGTH 7
 #define LINE_PACKET_HEADER 0xAA
 
 //robot specifications
@@ -80,12 +84,27 @@
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
 const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
-enum states_t  {STOPPED, FOLLOW_LINE, DBG_LINE_SENSORS};
+enum states_t  {  STOPPED,
+                  FOLLOW_LINE,
+                  ETCH_A_SKETCH,
+                  RUBIKS,
+                  SIMON,
+                  CARD,
+                  DBG_LINE_SENSORS};
 
 struct movement_vector_t {
   float x_velocity;
   float y_velocity;
   float angular_velocity;
+};
+
+struct line_following_packet_t {
+  char x_velocity;
+  char y_velocity;
+  char angular_velocity;
+  char game_state;
+  char debug1;
+  char debug2;
 };
 
 //variables that hold debugging data about line following sensors
@@ -95,20 +114,12 @@ unsigned char front_sensors = 0, back_sensors = 0, line_mini_state = 0;
 //global motor variables
 motor    motors[NUM_MOTORS]; //struct of variables dealing with motors
 pid_data motor_pid_data[NUM_MOTORS]; //struct of data dealing with PID
-/*
-Encoder  motor_encoders[NUM_MOTORS] = {
-  Encoder(MOTOR0_ENCODER_A, MOTOR0_ENCODER_B),
-  Encoder(MOTOR1_ENCODER_A, MOTOR1_ENCODER_B),
-  Encoder(MOTOR2_ENCODER_A, MOTOR2_ENCODER_B),
-  Encoder(MOTOR3_ENCODER_A, MOTOR3_ENCODER_B)
-};
-*/
 volatile int motor_encoders[NUM_MOTORS];
 
 //function prototypes
 void setup();
 void readKeyboard(movement_vector_t &movement_vector, states_t &state);
-bool readLineSensors(movement_vector_t &movement_vector);
+bool readLineSensors(line_following_packet_t &line_packet);
 
 //velocity computation functions
 float computeVelocity(const int wheelnum,
@@ -161,12 +172,16 @@ ISR(TIMER1_COMPA_vect) {
 //main
 int main() {
   //variables for determining robot direction
-  movement_vector_t movement_vector;
-  movement_vector.x_velocity = 0;
-  movement_vector.y_velocity = 0;
-  movement_vector.angular_velocity = 0;
+  movement_vector_t movement_vector = {0};
+
   //overall state of the robot
   states_t robot_state = STOPPED;
+
+  //line packet stuff
+  line_following_packet_t line_packet = {0};
+
+  //timing stuff
+  unsigned long start_time = 0;
 
 #ifdef SERIAL_DEBUG
   /*
@@ -199,22 +214,77 @@ int main() {
       case FOLLOW_LINE:
         //read line sensors will ask for data when nothing is on the line,
         //or when the first byte it reads is not 0xFF
-        if (readLineSensors(movement_vector))
-          Serial3.write(' ');
+        if (readLineSensors(line_packet))
+          Serial2.write(' ');
+
+        //Movement assignments
+        movement_vector.x_velocity = line_packet.x_velocity * LINE_RES_SCALE;
+        movement_vector.y_velocity = line_packet.y_velocity * LINE_RES_SCALE;
+        movement_vector.angular_velocity = line_packet.angular_velocity * LINE_RES_SCALE;
+
+        switch(line_packet.game_state) {
+          case 'E':
+            robot_state = ETCH_A_SKETCH;
+            break;
+
+          case 'C':
+            robot_state = CARD;
+            break;
+
+          case 'S':
+            robot_state = SIMON;
+            break;
+
+          case 'R':
+            robot_state = RUBIKS;
+            break;
+
+          default:
+            break;
+        } //end switch (line_packet.game_state);
+
+        //make sure to set the start time
+        if (line_packet.game_state != 0)
+          start_time = millis();
+
+#ifdef SERIAL_DEBUG
+        //DEBUG
+        front_sensors = line_packet.debug1;
+        back_sensors = line_packet.debug2;
+#endif
+        break; //END FOLLOW LINE
+
+      //Gameplay states
+      case RUBIKS:
+      case ETCH_A_SKETCH:
+      case SIMON:
+      case CARD:
+        digitalWrite(LED_PIN, HIGH);
+        if ((millis() - start_time ) > GAME_TIMEOUT) {
+          robot_state = FOLLOW_LINE;
+          digitalWrite(LED_PIN, LOW);
+          line_packet.game_state = 0;
+        }
         break;
 
       case DBG_LINE_SENSORS:
         //read line sensors will ask for data when nothing is on the line,
         //or when the first byte it reads is not 0xFF
-        if (readLineSensors(movement_vector))
-          Serial3.write(' ');
+        if (readLineSensors(line_packet))
+          Serial2.write(' ');
         movement_vector.x_velocity = 0;
         movement_vector.y_velocity = 0;
         movement_vector.angular_velocity = 0;
         for (int i = 0; i < NUM_MOTORS; ++i) {
           motors[i].command_velocity = 0;
         }
-        break;
+
+#ifdef SERIAL_DEBUG
+        //DEBUG
+        front_sensors = line_packet.debug1;
+        back_sensors = line_packet.debug2;
+#endif
+        break; //END DBG_LINE_SENSORS
 
       default:
         break;
@@ -240,8 +310,8 @@ int main() {
         (prev_front_sensors != front_sensors )) {
 
       if (robot_state == FOLLOW_LINE)
-        Serial.print((char) line_mini_state);
-      else
+        Serial.print(line_packet.game_state);
+      else if (robot_state == STOPPED)
         Serial.print("STOP");
 
       Serial.print("\tx_vel: ");
@@ -318,7 +388,7 @@ void setup() {
 
   //start the serial devices
   Serial.begin(9600);
-  Serial3.begin(9600);
+  Serial2.begin(9600);
 
   //set the PID constants
   for (int i = 0; i < NUM_MOTORS; ++i) {
@@ -422,6 +492,14 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
         movement_vector.angular_velocity += .24;//.3;
         break;
 
+      case 'l':
+        digitalWrite(LED_PIN, LOW);
+        break;
+
+      case 'L':
+        digitalWrite(LED_PIN, HIGH);
+        break;
+
       default:
         break;
     } //end switch
@@ -430,15 +508,15 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
 //this deals with reading the slave arduino's line sensors
 //readLineSensors returns whether or not the Request packet should be resent
-bool readLineSensors(movement_vector_t &movement_vector) {
+bool readLineSensors(line_following_packet_t &line_packet) {
   char incoming_byte = 0;
   static char bytes_read = 0;
   bool request_packet = false; //if I received the correct header
   //first byte read should be 0xFF, then the rest are y, x, o, i.
 
   //read the serial
-  if (Serial3.available() > 0) {
-    incoming_byte = Serial3.read();
+  if (Serial2.available() > 0) {
+    incoming_byte = Serial2.read();
 
     switch(bytes_read) { //switch case tells which byte to assign to
       case 0:
@@ -447,29 +525,27 @@ bool readLineSensors(movement_vector_t &movement_vector) {
         break;
 
       case 1:
-        movement_vector.y_velocity = incoming_byte * LINE_RES_SCALE;
+        line_packet.y_velocity = incoming_byte;
         break;
 
       case 2:
-        movement_vector.x_velocity = incoming_byte * LINE_RES_SCALE;
+        line_packet.x_velocity = incoming_byte;
         break;
 
       case 3:
-        movement_vector.angular_velocity = incoming_byte * LINE_RES_SCALE;
+        line_packet.angular_velocity = incoming_byte;
         break;
 
       case 4:
-        //line_mini_state = incoming_byte;
-        front_sensors = incoming_byte;
+        line_packet.game_state = incoming_byte;
         break;
 
       case 5:
-        //outer_sensors = incoming_byte;
-        back_sensors = incoming_byte;
+        line_packet.debug1 = incoming_byte;
         break;
 
       case 6:
-        //inner_sensor = incoming_byte;
+        line_packet.debug2 = incoming_byte;
         break;
 
       default:
@@ -482,7 +558,7 @@ bool readLineSensors(movement_vector_t &movement_vector) {
 
     if (request_packet == true) //reset bytes_read when resending packet
       bytes_read = 0;
-  }
+  } //end if (Serial.available() > 0)
   else {
     request_packet = true;
   }
