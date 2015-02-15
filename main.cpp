@@ -177,7 +177,6 @@ int main() {
   unsigned char prev_debug1 = 0, prev_debug2 = 0;
   states_t prev_state = STOPPED;
   float prev_x_vel = 0, prev_y_vel = 0, prev_ang_vel = 0;
-  unsigned char front_sensors = 0, back_sensors = 0;
 #endif
 
   init();
