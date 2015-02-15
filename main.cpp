@@ -102,10 +102,6 @@ struct line_following_packet_t {
   char debug2;
 };
 
-//variables that hold debugging data about line following sensors
-//unsigned char outer_sensors = 0, inner_sensor = 0, line_mini_state = 0;
-unsigned char front_sensors = 0, back_sensors = 0, line_mini_state = 0;
-
 //global motor variables
 motor    motors[NUM_MOTORS]; //struct of variables dealing with motors
 pid_data motor_pid_data[NUM_MOTORS]; //struct of data dealing with PID
@@ -178,9 +174,10 @@ int main() {
 
 #ifdef SERIAL_DEBUG
   //These variables hold the previous values for debugging purposes
-  unsigned char prev_back_sensors = 0, prev_front_sensors = 0;
+  unsigned char prev_debug1 = 0, prev_debug2 = 0;
   states_t prev_state = STOPPED;
   float prev_x_vel = 0, prev_y_vel = 0, prev_ang_vel = 0;
+  unsigned char front_sensors = 0, back_sensors = 0;
 #endif
 
   init();
@@ -236,11 +233,6 @@ int main() {
         if (line_packet.game_state != 0)
           start_time = millis();
 
-#ifdef SERIAL_DEBUG
-        //DEBUG
-        front_sensors = line_packet.debug1;
-        back_sensors = line_packet.debug2;
-#endif
         break; //END FOLLOW LINE
 
       //Gameplay states
@@ -268,11 +260,6 @@ int main() {
           motors[i].command_velocity = 0;
         }
 
-#ifdef SERIAL_DEBUG
-        //DEBUG
-        front_sensors = line_packet.debug1;
-        back_sensors = line_packet.debug2;
-#endif
         break; //END DBG_LINE_SENSORS
 
       default:
@@ -295,8 +282,8 @@ int main() {
         (prev_x_vel != movement_vector.x_velocity) ||
         (prev_y_vel != movement_vector.y_velocity) ||
         (prev_ang_vel != movement_vector.angular_velocity) ||
-        (prev_back_sensors != back_sensors) ||
-        (prev_front_sensors != front_sensors )) {
+        (prev_debug1 != line_packet.debug1) ||
+        (prev_debug2 != line_packet.debug2)) {
 
       if (robot_state == STOPPED)
         Serial.print("STOP");
@@ -315,17 +302,17 @@ int main() {
       //Serial.print("\n");
 
       Serial.print(" F");
-      Serial.write(front_sensors);
+      Serial.write(line_packet.debug1);
       Serial.print("B");
-      Serial.write(back_sensors);
+      Serial.write(line_packet.debug2);
       Serial.print("\n");
 
       prev_x_vel = movement_vector.x_velocity;
       prev_y_vel = movement_vector.y_velocity;
       prev_ang_vel = movement_vector.angular_velocity;
       prev_state = robot_state;
-      prev_back_sensors = back_sensors;
-      prev_front_sensors = front_sensors;
+      prev_debug1 = line_packet.debug1;
+      prev_debug2 = line_packet.debug2;
     } //end if
 #endif
     //END DEBUGGING CODE
