@@ -178,10 +178,6 @@ int main() {
 
 #ifdef SERIAL_DEBUG
   //These variables hold the previous values for debugging purposes
-  /*
-     float prev_motor_velocity = 0;
-     long  prev_encoder_value = 0;
-     */
   unsigned char prev_back_sensors = 0, prev_front_sensors = 0;
   states_t prev_state = STOPPED;
   float prev_x_vel = 0, prev_y_vel = 0, prev_ang_vel = 0;
@@ -419,48 +415,24 @@ void setup() {
 //readLineSensors returns whether or not the Request packet should be resent
 //non-blocking because you can't assume data always comes.
 bool readLineSensors(line_following_packet_t &line_packet) {
-  char incoming_byte = 0;
-  static char bytes_read = 0;
-  bool request_packet = false; //if I received the correct header
+  char                  incoming_byte = 0;
+  char                  *packet_ptr = (char *) &line_packet;
+  static unsigned char  bytes_read = 0;
+  bool                  request_packet = false; //if received the correct header
   //first byte read should be 0xFF, then the rest are y, x, o, i.
 
   //read the serial
   if (LINE_SERIAL.available() > 0) {
     incoming_byte = LINE_SERIAL.read();
 
-    switch(bytes_read) { //switch case tells which byte to assign to
-      case 0:
-        if ((unsigned char) incoming_byte != LINE_PACKET_HEADER)
-          request_packet = true;
-        break;
-
-      case 1:
-        line_packet.y_velocity = incoming_byte;
-        break;
-
-      case 2:
-        line_packet.x_velocity = incoming_byte;
-        break;
-
-      case 3:
-        line_packet.angular_velocity = incoming_byte;
-        break;
-
-      case 4:
-        line_packet.game_state = incoming_byte;
-        break;
-
-      case 5:
-        line_packet.debug1 = incoming_byte;
-        break;
-
-      case 6:
-        line_packet.debug2 = incoming_byte;
-        break;
-
-      default:
-        break;
-    } //end switch
+    if (bytes_read == 0) {
+      if ((unsigned char) incoming_byte != LINE_PACKET_HEADER)
+        request_packet = true;
+    }
+    else if (bytes_read > 0) {
+      //minus 1 because packet struct does not contain header byte
+      *(packet_ptr + bytes_read - 1) = incoming_byte;
+    }
 
     bytes_read++;
     if (bytes_read >= PACKET_LENGTH) //reset bytes_read
