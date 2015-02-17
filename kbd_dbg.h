@@ -29,22 +29,24 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'F': //start
         state = FOLLOW_LINE;
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH); //HACK FIX: FIND BETTER SOLUTION
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH);
+        LINE_SERIAL.write(LINE_SERIAL_RESET);
+        digitalWrite(LED_PIN, HIGH);
+        delay(2000);
+        digitalWrite(LED_PIN, LOW);
+        LINE_SERIAL.write(LINE_SERIAL_START);
         break;
 
       case 'D':
         state = DBG_LINE_SENSORS;
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH); //HACK FIX: FIND BETTER SOLUTION
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH);
+        LINE_SERIAL.write(LINE_SERIAL_START);
+        break;
+
+      case 'R':
+        LINE_SERIAL.write(LINE_SERIAL_RESET);
+        break;
+
+      case 'S':
+        LINE_SERIAL.write(LINE_SERIAL_START);
         break;
 
       case 'w':

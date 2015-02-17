@@ -63,6 +63,9 @@
 #define ETCH_SERIAL
 #define RUBI_SERIAL
 
+#define LINE_SERIAL_START 'S'
+#define LINE_SERIAL_RESET 'R'
+
 #define PACKET_LENGTH 7
 #define LINE_PACKET_HEADER 0xAA
 
