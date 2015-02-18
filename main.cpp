@@ -342,7 +342,7 @@ int main() {
         Serial.print(line_packet.game_state);
 
       Serial.print("\tx_vel: ");
-      Serial.print(motor_encoders[BACK_RIGHT_MOTOR]);
+      Serial.print(movement_vector.x_velocity, 4);
       Serial.print("\t");
 
       Serial.print("\ty_vel: ");
