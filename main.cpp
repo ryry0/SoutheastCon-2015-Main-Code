@@ -21,17 +21,17 @@
  * 350/60 * 2pi = 36.651 rad/s @ theoretically 255 PWM
  */
 
-#include <math.h>
-#include <Arduino.h>
+#include "math.h"
+#include "Arduino.h"
 
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
 #define SERIAL_DEBUG
 #define KBD_DEBUG
 
-#include <motor.h>
-#include <PID.h>
-#include <motor_pins.h>
+#include "motor.h"
+#include "PID.h"
+#include "motor_pins.h"
 
 #define RESET_PIN 48
 
@@ -122,7 +122,7 @@ volatile long motor_encoders[NUM_MOTORS];
 //resets all data pertaining to motors
 void resetMotorData(movement_vector_t &movement_vector);
 #ifdef KBD_DEBUG
-#include <kbd_dbg.h> //keyboard debugging function
+#include "kbd_dbg.h" //keyboard debugging function
 #endif
 void setup();
 bool readLineSensors(line_following_packet_t &line_packet);
