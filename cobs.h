@@ -42,12 +42,12 @@ void cobsEncode(const char* source, const unsigned int length, char* destination
    byte.
    */
 void cobsDecodeInPlace(char* buffer, const unsigned int length) {
-  unsigned int zero_byte_pos = buffer[1];
+  unsigned int next_zero_byte_pos = buffer[1];
   unsigned int current_zero_byte_pos = 1;
 
   for (unsigned int i = 2; i < length; ++i) {
-    if (i - current_zero_byte_pos == zero_byte_pos) {
-      zero_byte_pos = buffer[i];
+    if (i - current_zero_byte_pos == next_zero_byte_pos) {
+      next_zero_byte_pos = buffer[i];
       current_zero_byte_pos = i;
       buffer[i] = 0;
     }

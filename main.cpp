@@ -66,8 +66,8 @@
 #define LINE_SERIAL_START 'S'
 #define LINE_SERIAL_RESET 'R'
 
-#define PACKET_LENGTH 7
-#define LINE_PACKET_HEADER 0xAA
+#define PACKET_LENGTH 8 //header cobs_byte y x a g d1 d2
+#define LINE_PACKET_HEADER 0x00
 
 //robot specifications
 #define WHEEL_RADIUS 0.0508 //[m]
@@ -403,10 +403,13 @@ void setup() {
 //this deals with reading the slave arduino's line sensors
 //readLineSensors returns whether or not the Request packet should be resent
 //non-blocking because you can't assume data always comes.
+//Now it also performs on the fly COBS decoding
 bool readLineSensors(line_following_packet_t &line_packet) {
   char                  incoming_byte = 0;
   char                  *packet_ptr = (char *) &line_packet;
-  static unsigned char  bytes_read = 0;
+  static unsigned char  bytes_read = 0,
+                        next_zero_byte_pos = 0,
+                        current_zero_byte_pos = 1;
   bool                  request_packet = false; //if received the correct header
   //first byte read should be 0xFF, then the rest are y, x, o, i.
 
@@ -414,14 +417,26 @@ bool readLineSensors(line_following_packet_t &line_packet) {
   if (LINE_SERIAL.available() > 0) {
     incoming_byte = LINE_SERIAL.read();
 
-    if (bytes_read == 0) {
+    if (bytes_read == 0) { //check for header but don't store it
       if ((unsigned char) incoming_byte != LINE_PACKET_HEADER)
         request_packet = true;
     }
-    else if (bytes_read > 0) {
-      //minus 1 because packet struct does not contain header byte
-      *(packet_ptr + bytes_read - 1) = incoming_byte;
+
+    else if (bytes_read == 1) {
+      next_zero_byte_pos = incoming_byte; //get the code byte
+      current_zero_byte_pos = 1;
     }
+
+    else if (bytes_read > 1) { //perform the decoding as it comes
+      //minus 2 because packet struct does not contain header byte or cobs_byte
+      if (bytes_read - current_zero_byte_pos == next_zero_byte_pos) {
+        next_zero_byte_pos = incoming_byte;
+        current_zero_byte_pos = bytes_read;
+        *(packet_ptr + bytes_read - 2) = 0;
+      }
+      else
+        *(packet_ptr + bytes_read - 2) = incoming_byte;
+    } //end else if (bytes_read > 1)
 
     bytes_read++;
     if (bytes_read >= PACKET_LENGTH) //reset bytes_read
