@@ -10,45 +10,17 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
     switch(incoming_byte) {
       case ' ': //stop line following
-        movement_vector.x_velocity = 0;
-        movement_vector.y_velocity = 0;
-        movement_vector.angular_velocity = 0;
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].pwm = 0;
-          motors[i].command_position = 0;
-          motors[i].command_velocity = 0;
-          motors[i].encoder_value = 0;
-          motor_encoders[i] = 0;
-          motor_pid_data[i].pid_output = 0;
-          motor_pid_data[i].previous_error = 0;
-          motor_pid_data[i].integral_error = 0;
-          stopMotor(motors[i]);
-        }
+        resetMotorData(movement_vector);
         state = STOPPED;
         break;
 
       case 'F': //start
         state = FOLLOW_LINE;
 
-        movement_vector.x_velocity = 0;
-        movement_vector.y_velocity = 0;
-        movement_vector.angular_velocity = 0;
-        for (int i = 0; i < NUM_MOTORS; ++i) {
-          motors[i].pwm = 0;
-          motors[i].command_position = 0;
-          motors[i].command_velocity = 0;
-          motors[i].encoder_value = 0;
-          motor_encoders[i] = 0;
-          motor_pid_data[i].pid_output = 0;
-          motor_pid_data[i].previous_error = 0;
-          motor_pid_data[i].integral_error = 0;
-          stopMotor(motors[i]);
-        }
+        resetMotorData(movement_vector);
 
         LINE_SERIAL.write(LINE_SERIAL_RESET);
-        digitalWrite(LED_PIN, HIGH);
         delay(2000);
-        digitalWrite(LED_PIN, LOW);
         LINE_SERIAL.write(LINE_SERIAL_START);
         break;
 
@@ -63,6 +35,14 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'S':
         LINE_SERIAL.write(LINE_SERIAL_START);
+        break;
+
+      case 'W':
+        state = WAIT_FOR_LED;
+        break;
+
+      case 'I':
+        state = INITIALIZE;
         break;
 
       case 'w':
@@ -87,14 +67,6 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'q':
         movement_vector.angular_velocity += .24;//.3;
-        break;
-
-      case 'l':
-        digitalWrite(LED_PIN, LOW);
-        break;
-
-      case 'L':
-        digitalWrite(LED_PIN, HIGH);
         break;
 
       default:

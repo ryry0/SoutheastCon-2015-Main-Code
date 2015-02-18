@@ -34,7 +34,6 @@
 #include <motor_pins.h>
 
 #define RESET_PIN 48
-#define LED_PIN 8
 
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
@@ -60,14 +59,20 @@
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
-#define ETCH_SERIAL
+#define ETCH_SERIAL Serial1
 #define RUBI_SERIAL
 
+//Line following defines
 #define LINE_SERIAL_START 'S'
 #define LINE_SERIAL_RESET 'R'
 
 #define PACKET_LENGTH 8 //header cobs_byte y x a g d1 d2
 #define LINE_PACKET_HEADER 0x00
+
+//Etch-A-Sketch defines
+#define ETCH_OPEN_ARMS  'O'
+#define ETCH_CLOSE_ARMS 'C'
+#define ETCH_PLAY_GAME  'P'
 
 //robot specifications
 #define WHEEL_RADIUS 0.0508 //[m]
@@ -79,13 +84,16 @@
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
 const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
-enum states_t  {  STOPPED,
-                  FOLLOW_LINE,
-                  ETCH_A_SKETCH,
-                  RUBIKS,
-                  SIMON,
-                  CARD,
-                  DBG_LINE_SENSORS};
+enum states_t  {  STOPPED,        //default state when powered on
+                  WAIT_FOR_LED,   //game started: wait for the led to turn on
+                  INITIALIZE,     //LED OFF, robot initializes arm positions
+                  FOLLOW_LINE,    //Follows the line
+                  ETCH_A_SKETCH,  //Plays etch a sketch
+                  RUBIKS,         //Plays rubik's
+                  SIMON,          //Plays simon
+                  CARD,           //Plays card
+                  FINISH,         //State of robot @ finish line. Retracts arms
+                  DBG_LINE_SENSORS}; //Get line sensor data w/o moving
 
 //data struct definitions
 //movement vector is heading of robot in m/s
@@ -111,6 +119,8 @@ pid_data motor_pid_data[NUM_MOTORS]; //struct of data dealing with PID
 volatile long motor_encoders[NUM_MOTORS];
 
 //function prototypes
+//resets all data pertaining to motors
+void resetMotorData(movement_vector_t &movement_vector);
 #ifdef KBD_DEBUG
 #include <kbd_dbg.h> //keyboard debugging function
 #endif
@@ -196,7 +206,28 @@ int main() {
             motors[i].command_position = motor_encoders[i];
           }
         } //end for
-        break;
+        break; //end stopped
+
+      case WAIT_FOR_LED:
+        /* Wait for led code goes here */
+        robot_state = INITIALIZE;
+        break; //end wait for led
+
+      case INITIALIZE:
+        //clears all data
+        resetMotorData(movement_vector);
+
+        //opens arms before beginning of run
+        ETCH_SERIAL.write(ETCH_OPEN_ARMS);
+
+        //reset the serial
+        LINE_SERIAL.write(LINE_SERIAL_RESET);
+        delay(2000);
+        LINE_SERIAL.write(LINE_SERIAL_START);
+
+        line_packet.game_state = 0;
+        robot_state = FOLLOW_LINE;
+        break; //end initialize
 
       case FOLLOW_LINE:
         //read line sensors will ask for data when nothing is on the line,
@@ -227,6 +258,10 @@ int main() {
             robot_state = RUBIKS;
             break;
 
+          case 'F':
+            robot_state = FINISH;
+            break;
+
           default:
             break;
         } //end switch (line_packet.game_state);
@@ -238,14 +273,22 @@ int main() {
         break; //END FOLLOW LINE
 
       //Gameplay states
-      case RUBIKS:
       case ETCH_A_SKETCH:
-      case SIMON:
-      case CARD:
-        digitalWrite(LED_PIN, HIGH);
+        /* Etch A Sketch code goes here */
+        ETCH_SERIAL.write(ETCH_PLAY_GAME);
+
+        //timer for timing out the game
         if ((millis() - start_time ) > GAME_TIMEOUT) {
           robot_state = FOLLOW_LINE;
-          digitalWrite(LED_PIN, LOW);
+          line_packet.game_state = 0;
+        }
+        break; //end etch a sketch
+
+      case RUBIKS:
+      case SIMON:
+      case CARD:
+        if ((millis() - start_time ) > GAME_TIMEOUT) {
+          robot_state = FOLLOW_LINE;
           line_packet.game_state = 0;
         }
         break;
@@ -263,6 +306,12 @@ int main() {
         }
 
         break; //END DBG_LINE_SENSORS
+
+        //finish case
+      case FINISH:
+        ETCH_SERIAL.write(ETCH_CLOSE_ARMS);
+        robot_state = STOPPED;
+        break; //end finish
 
       default:
         break;
@@ -367,6 +416,7 @@ void setup() {
   //start the serial devices
   Serial.begin(9600);
   LINE_SERIAL.begin(9600);
+  ETCH_SERIAL.begin(9600);
 
   //set the PID constants
   for (int i = 0; i < NUM_MOTORS; ++i) {
@@ -482,3 +532,20 @@ float computeVelocity(const int wheelnum,
   }
   return velocity;
 }
+
+void resetMotorData(movement_vector_t &movement_vector) {
+  movement_vector.x_velocity = 0;
+  movement_vector.y_velocity = 0;
+  movement_vector.angular_velocity = 0;
+  for (int i = 0; i < NUM_MOTORS; ++i) {
+    motors[i].pwm = 0;
+    motors[i].command_position = 0;
+    motors[i].command_velocity = 0;
+    motors[i].encoder_value = 0;
+    motor_encoders[i] = 0;
+    motor_pid_data[i].pid_output = 0;
+    motor_pid_data[i].previous_error = 0;
+    motor_pid_data[i].integral_error = 0;
+    stopMotor(motors[i]);
+  } // end for
+} //end resetMotorData
