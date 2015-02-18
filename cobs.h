@@ -10,10 +10,10 @@
    reasons. Encode in place assumes that the first byte is the header byte and
    the second byte is the code byte.
    */
-void cobsEncodeInPlace(char* buffer, const int length) {
-  int zero_byte_pos = 1;
+void cobsEncodeInPlace(char* buffer, const unsigned int length) {
+  unsigned int zero_byte_pos = 1;
 
-  for (int i = 2; i < length; ++i) {
+  for (unsigned int i = 2; i < length; ++i) {
     if (buffer[i] == 0) {
       buffer[zero_byte_pos] = i - zero_byte_pos;
       zero_byte_pos = i;
@@ -28,7 +28,7 @@ void cobsEncodeInPlace(char* buffer, const int length) {
    For destination, pass in an array that is 2 bytes larger than the source
    length.
    */
-void cobsEncode(const char* source, const int length, char* destination) {
+void cobsEncode(const char* source, const unsigned int length, char* destination) {
   destination [0] = 0;
 
   //copy source to destination offset by 2 bytes
@@ -41,11 +41,11 @@ void cobsEncode(const char* source, const int length, char* destination) {
    assumes that the first byte is the header byte and the second byte is the code
    byte.
    */
-void cobsDecodeInPlace(char* buffer, const int length) {
-  int zero_byte_pos = buffer[1];
-  int current_zero_byte_pos = 1;
+void cobsDecodeInPlace(char* buffer, const unsigned int length) {
+  unsigned int zero_byte_pos = buffer[1];
+  unsigned int current_zero_byte_pos = 1;
 
-  for (int i = 2; i < length; ++i) {
+  for (unsigned int i = 2; i < length; ++i) {
     if (i - current_zero_byte_pos == zero_byte_pos) {
       zero_byte_pos = buffer[i];
       current_zero_byte_pos = i;
@@ -61,7 +61,7 @@ void cobsDecodeInPlace(char* buffer, const int length) {
    length minus 2.
    Strips the  header and code byte from the data.
    */
-void cobsDecode(const char* source, const int length, char* destination) {
+void cobsDecode(const char* source, const unsigned int length, char* destination) {
   char* buffer = (char*) malloc(length);
 
   memcpy(buffer, source, length);

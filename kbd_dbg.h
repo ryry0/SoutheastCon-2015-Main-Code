@@ -29,22 +29,40 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'F': //start
         state = FOLLOW_LINE;
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH); //HACK FIX: FIND BETTER SOLUTION
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH);
+
+        movement_vector.x_velocity = 0;
+        movement_vector.y_velocity = 0;
+        movement_vector.angular_velocity = 0;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].pwm = 0;
+          motors[i].command_position = 0;
+          motors[i].command_velocity = 0;
+          motors[i].encoder_value = 0;
+          motor_encoders[i] = 0;
+          motor_pid_data[i].pid_output = 0;
+          motor_pid_data[i].previous_error = 0;
+          motor_pid_data[i].integral_error = 0;
+          stopMotor(motors[i]);
+        }
+
+        LINE_SERIAL.write(LINE_SERIAL_RESET);
+        digitalWrite(LED_PIN, HIGH);
+        delay(2000);
+        digitalWrite(LED_PIN, LOW);
+        LINE_SERIAL.write(LINE_SERIAL_START);
         break;
 
       case 'D':
         state = DBG_LINE_SENSORS;
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH); //HACK FIX: FIND BETTER SOLUTION
-        digitalWrite(RESET_PIN, LOW);
-        for (int i = 0; i < 100; ++i);
-        digitalWrite(RESET_PIN, HIGH);
+        LINE_SERIAL.write(LINE_SERIAL_START);
+        break;
+
+      case 'R':
+        LINE_SERIAL.write(LINE_SERIAL_RESET);
+        break;
+
+      case 'S':
+        LINE_SERIAL.write(LINE_SERIAL_START);
         break;
 
       case 'w':
