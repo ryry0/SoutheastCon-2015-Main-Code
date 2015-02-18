@@ -2,25 +2,72 @@
 #define COBS_H_
 
 #include <string.h>
-//on non-embedded systems, should return size_t, and should be size_t length.
-//Same thing applies to cobes decode
-//for destination, pass in an array that is 2 bytes larger than the source
-//length.
-void cobsEncode(char * source, int length, char * destination) {
+#include <stdlib.h>
+
+/*
+   cobs Encode in place does the encoding on the same array passed in, and does
+   not require using a different array. This may be preferable for performance
+   reasons. Encode in place assumes that the first byte is the header byte and
+   the second byte is the code byte.
+   */
+void cobsEncodeInPlace(char* buffer, const int length) {
   int zero_byte_pos = 1;
+
+  for (int i = 2; i < length; ++i) {
+    if (buffer[i] == 0) {
+      buffer[zero_byte_pos] = i - zero_byte_pos;
+      zero_byte_pos = i;
+    }
+  }
+  buffer[zero_byte_pos] = length - zero_byte_pos;
+}
+
+/*
+   on non-embedded systems, should return size_t, and should be size_t length.
+   Same thing applies to cobes decode.
+   For destination, pass in an array that is 2 bytes larger than the source
+   length.
+   */
+void cobsEncode(const char* source, const int length, char* destination) {
   destination [0] = 0;
 
   //copy source to destination offset by 2 bytes
   memcpy(destination + 2, source, length);
-  for (int i = 2; i < length + 2; ++i) {
-    if (destination[i] == 0) {
-      destination[zero_byte_pos] = i - zero_byte_pos;
-      zero_byte_pos = i;
-    }
-  }
-  destination[zero_byte_pos] = length + 2 - zero_byte_pos;
+  cobsEncodeInPlace(destination, length + 2);
 }
 
-void cobsDecode(char * source, int length, char * destination) {
+/*
+   Decode in place does the decoding on the same array passed in. Decode in place
+   assumes that the first byte is the header byte and the second byte is the code
+   byte.
+   */
+void cobsDecodeInPlace(char* buffer, const int length) {
+  int zero_byte_pos = buffer[1];
+  int current_zero_byte_pos = 1;
+
+  for (int i = 2; i < length; ++i) {
+    if (i - current_zero_byte_pos == zero_byte_pos) {
+      zero_byte_pos = buffer[i];
+      current_zero_byte_pos = i;
+      buffer[i] = 0;
+    }
+  }
+}
+
+/*
+   on non-embedded systems, should return size_t, and should be size_t length.
+   Same thing applies to cobes decode.
+   For destination, pass in an array that is at least as large as the source
+   length minus 2.
+   Strips the  header and code byte from the data.
+   */
+void cobsDecode(const char* source, const int length, char* destination) {
+  char* buffer = (char*) malloc(length);
+
+  memcpy(buffer, source, length);
+  cobsDecodeInPlace(buffer, length);
+  memcpy(destination,buffer+2, length-2);
+
+  free(buffer);
 }
 #endif
