@@ -108,7 +108,7 @@ struct line_following_packet_t {
 //global motor variables
 motor    motors[NUM_MOTORS]; //struct of variables dealing with motors
 pid_data motor_pid_data[NUM_MOTORS]; //struct of data dealing with PID
-volatile int motor_encoders[NUM_MOTORS];
+volatile long motor_encoders[NUM_MOTORS];
 
 //function prototypes
 #ifdef KBD_DEBUG
@@ -293,7 +293,7 @@ int main() {
         Serial.print(line_packet.game_state);
 
       Serial.print("\tx_vel: ");
-      Serial.print(movement_vector.x_velocity, 4);
+      Serial.print(motor_encoders[BACK_RIGHT_MOTOR]);
       Serial.print("\t");
 
       Serial.print("\ty_vel: ");

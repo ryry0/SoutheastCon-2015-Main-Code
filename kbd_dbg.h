@@ -29,6 +29,22 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'F': //start
         state = FOLLOW_LINE;
+
+        movement_vector.x_velocity = 0;
+        movement_vector.y_velocity = 0;
+        movement_vector.angular_velocity = 0;
+        for (int i = 0; i < NUM_MOTORS; ++i) {
+          motors[i].pwm = 0;
+          motors[i].command_position = 0;
+          motors[i].command_velocity = 0;
+          motors[i].encoder_value = 0;
+          motor_encoders[i] = 0;
+          motor_pid_data[i].pid_output = 0;
+          motor_pid_data[i].previous_error = 0;
+          motor_pid_data[i].integral_error = 0;
+          stopMotor(motors[i]);
+        }
+
         LINE_SERIAL.write(LINE_SERIAL_RESET);
         digitalWrite(LED_PIN, HIGH);
         delay(2000);
