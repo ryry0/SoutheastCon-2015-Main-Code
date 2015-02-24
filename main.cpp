@@ -84,6 +84,11 @@
 const float inv_radius = 1.0/WHEEL_RADIUS; //inverse radius
 const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
+// Photoresistor things
+const float prk  = 1.0/5.0;
+#define PHOTORESISTOR_THRESHOLD 400
+#define PHOTORESISTOR           A0
+
 enum states_t  {  STOPPED,        //default state when powered on
                   WAIT_FOR_LED,   //game started: wait for the led to turn on
                   INITIALIZE,     //LED OFF, robot initializes arm positions
@@ -182,6 +187,9 @@ int main() {
   movement_vector_t       movement_vector = {0};
   line_following_packet_t line_packet = {0}; //line packet stuff
 
+  //photoresistor voltage
+  float pr_voltage = 0;
+
   //timing stuff
   unsigned long start_time = 0;
 
@@ -209,8 +217,13 @@ int main() {
         break; //end stopped
 
       case WAIT_FOR_LED:
-        /* Wait for led code goes here */
-        robot_state = INITIALIZE;
+        // Wait for LED code
+        // Analog measurement is connected across PR (5k-100k)
+        // with 50k resistor in series.
+        // Once the light goes off, 2/3 of the 5V should be across the PR,
+        // so threshold is 512
+        pr_voltage = (1-prk)*pr_voltage + prk*(float)analogRead(PHOTORESISTOR);
+        if(pr_voltage > PHOTORESISTOR_THRESHOLD) robot_state = INITIALIZE;
         break; //end wait for led
 
       case INITIALIZE:
