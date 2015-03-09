@@ -55,7 +55,8 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define GAME_TIMEOUT 4000 //time to wait for the game to complete in ms
+#define GAME_TIMEOUT 25000 //time to wait for the game to complete in ms
+#define TIMEOUT      5000
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
@@ -97,6 +98,7 @@ enum states_t  {  STOPPED,        //default state when powered on
                   RUBIKS,         //Plays rubik's
                   SIMON,          //Plays simon
                   CARD,           //Plays card
+                  WAIT_FOR_GAME,  //Waits till game is done
                   FINISH,         //State of robot @ finish line. Retracts arms
                   DBG_LINE_SENSORS}; //Get line sensor data w/o moving
 
@@ -183,7 +185,7 @@ ISR(TIMER1_COMPA_vect) {
 //main
 int main() {
   //variables for determining robot direction
-  states_t                robot_state = STOPPED; //overall state of the robot
+  states_t                robot_state = WAIT_FOR_LED; //overall state of the robot
   movement_vector_t       movement_vector = {0};
   line_following_packet_t line_packet = {0}; //line packet stuff
 
@@ -234,8 +236,6 @@ int main() {
         ETCH_SERIAL.write(ETCH_OPEN_ARMS);
 
         //reset the serial
-        LINE_SERIAL.write(LINE_SERIAL_RESET);
-        delay(2000);
         LINE_SERIAL.write(LINE_SERIAL_START);
 
         line_packet.game_state = 0;
@@ -290,16 +290,20 @@ int main() {
         /* Etch A Sketch code goes here */
         ETCH_SERIAL.write(ETCH_PLAY_GAME);
 
-        //timer for timing out the game
-        if ((millis() - start_time ) > GAME_TIMEOUT) {
-          robot_state = FOLLOW_LINE;
-          line_packet.game_state = 0;
-        }
+        robot_state = WAIT_FOR_GAME;
         break; //end etch a sketch
 
       case RUBIKS:
       case SIMON:
       case CARD:
+        if ((millis() - start_time ) > TIMEOUT) {
+          robot_state = FOLLOW_LINE;
+          line_packet.game_state = 0;
+        }
+        break;
+
+      case WAIT_FOR_GAME:
+        //timer for timing out the game
         if ((millis() - start_time ) > GAME_TIMEOUT) {
           robot_state = FOLLOW_LINE;
           line_packet.game_state = 0;
