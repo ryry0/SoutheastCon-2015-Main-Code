@@ -55,7 +55,7 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define GAME_TIMEOUT 25000 //time to wait for the game to complete in ms
+#define ETCH_TIMEOUT 25000 //time to wait for the game to complete in ms
 #define TIMEOUT      5000
 
 //define serial to use for each subsystem
@@ -74,6 +74,8 @@
 #define ETCH_OPEN_ARMS  'O'
 #define ETCH_CLOSE_ARMS 'C'
 #define ETCH_PLAY_GAME  'P'
+
+#define GAME_DONE 'D'
 
 //robot specifications
 #define WHEEL_RADIUS 0.0508 //[m]
@@ -94,10 +96,6 @@ enum states_t  {  STOPPED,        //default state when powered on
                   WAIT_FOR_LED,   //game started: wait for the led to turn on
                   INITIALIZE,     //LED OFF, robot initializes arm positions
                   FOLLOW_LINE,    //Follows the line
-                  ETCH_A_SKETCH,  //Plays etch a sketch
-                  RUBIKS,         //Plays rubik's
-                  SIMON,          //Plays simon
-                  CARD,           //Plays card
                   WAIT_FOR_GAME,  //Waits till game is done
                   FINISH,         //State of robot @ finish line. Retracts arms
                   DBG_LINE_SENSORS}; //Get line sensor data w/o moving
@@ -189,6 +187,9 @@ int main() {
   movement_vector_t       movement_vector = {0};
   line_following_packet_t line_packet = {0}; //line packet stuff
 
+  int game_timeout = 0; //specifies the timeout to use
+  char byte_read = 0; //used in wait_for_game state to check serial if done
+
   //photoresistor voltage
   float pr_voltage = 0;
 
@@ -255,20 +256,18 @@ int main() {
           line_packet.angular_velocity * LINE_RES_SCALE;
 
         switch(line_packet.game_state) {
+          //write one-shot code here to run during transition state
           case 'E':
-            robot_state = ETCH_A_SKETCH;
+            ETCH_SERIAL.write(ETCH_PLAY_GAME);
             break;
 
           case 'C':
-            robot_state = CARD;
             break;
 
           case 'S':
-            robot_state = SIMON;
             break;
 
           case 'R':
-            robot_state = RUBIKS;
             break;
 
           case 'F':
@@ -279,34 +278,38 @@ int main() {
             break;
         } //end switch (line_packet.game_state);
 
-        //make sure to set the start time
-        if (line_packet.game_state != 0)
+        //make sure to set the start time and transition to wait_for_game
+        if ((line_packet.game_state != 0) && (line_packet.game_state != 'F')) {
           start_time = millis();
+          robot_state = WAIT_FOR_GAME;
+        }
 
         break; //END FOLLOW LINE
 
-      //Gameplay states
-      case ETCH_A_SKETCH:
-        /* Etch A Sketch code goes here */
-        ETCH_SERIAL.write(ETCH_PLAY_GAME);
-
-        robot_state = WAIT_FOR_GAME;
-        break; //end etch a sketch
-
-      case RUBIKS:
-      case SIMON:
-      case CARD:
-        if ((millis() - start_time ) > TIMEOUT) {
-          robot_state = FOLLOW_LINE;
-          line_packet.game_state = 0;
-        }
-        break;
-
       case WAIT_FOR_GAME:
+
+        //check game and set timeout and check appropriate serial
+        switch(line_packet.game_state) {
+          case 'E':
+            if (ETCH_SERIAL.available() > 0)
+              byte_read = ETCH_SERIAL.read();
+
+            game_timeout = ETCH_TIMEOUT;
+            break;
+
+          case 'C':
+          case 'S':
+          case 'R':
+            game_timeout = TIMEOUT;
+            break;
+        } //end switch(line_packet.game_state)
+
         //timer for timing out the game
-        if ((millis() - start_time ) > GAME_TIMEOUT) {
+        if (((millis() - start_time ) > game_timeout) ||
+            (byte_read == GAME_DONE)) {
           robot_state = FOLLOW_LINE;
           line_packet.game_state = 0;
+          byte_read = 0;
         }
         break;
 
