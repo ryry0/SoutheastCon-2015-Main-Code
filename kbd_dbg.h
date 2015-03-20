@@ -69,6 +69,15 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
         movement_vector.angular_velocity += .24;//.3;
         break;
 
+      case 'O':
+        RUBI_SERIAL.write(RUBI_OPEN_ARMS);
+        ETCH_SERIAL.write(ETCH_OPEN_ARMS);
+        break;
+
+      case 'C':
+        RUBI_SERIAL.write(RUBI_CLOSE_ARMS);
+        ETCH_SERIAL.write(ETCH_CLOSE_ARMS);
+        break;
       default:
         break;
     } //end switch
