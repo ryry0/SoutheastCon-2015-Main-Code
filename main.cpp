@@ -27,7 +27,7 @@
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
 #define SERIAL_DEBUG
-#define KBD_DEBUG
+//#define KBD_DEBUG
 
 #include "motor.h"
 #include "PID.h"
@@ -55,13 +55,19 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define ETCH_TIMEOUT 25000 //time to wait for the game to complete in ms
-#define TIMEOUT      5000
+#define ETCH_TIMEOUT  25000 //time to wait for the game to complete in ms
+#define RUBI_TIMEOUT  10000
+#define CARD_TIMEOUT  10000
+#define SIMON_TIMEOUT 20000
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
-#define ETCH_SERIAL Serial1
-#define RUBI_SERIAL
+#define ETCH_SERIAL Serial3
+#define RUBI_SERIAL Serial
+#define CARD_SERIAL Serial3
+#define SIMON_SERIAL Serial
+
+#define DEBUG_SERIAL Serial1
 
 //Line following defines
 #define LINE_SERIAL_START 'S'
@@ -74,6 +80,20 @@
 #define ETCH_OPEN_ARMS  'O'
 #define ETCH_CLOSE_ARMS 'C'
 #define ETCH_PLAY_GAME  'P'
+#define ETCH_RAISE      'T'
+
+//Rubiks defines
+#define RUBI_OPEN_ARMS  'O'
+#define RUBI_CLOSE_ARMS 'C'
+#define RUBI_PLAY_GAME  'J'
+#define RUBI_RAISE      'M'
+#define RUBI_ALIGN      'D'
+
+//card defines
+#define CARD_PLAY_GAME 'Q'
+
+//simon defines
+#define SIMON_PLAY_GAME 'Q'
 
 #define GAME_DONE 'D'
 
@@ -235,6 +255,10 @@ int main() {
 
         //opens arms before beginning of run
         ETCH_SERIAL.write(ETCH_OPEN_ARMS);
+        ETCH_SERIAL.write(ETCH_RAISE);
+        RUBI_SERIAL.write(RUBI_OPEN_ARMS);
+        RUBI_SERIAL.write(RUBI_RAISE);
+        RUBI_SERIAL.write(RUBI_ALIGN);
 
         //reset the serial
         LINE_SERIAL.write(LINE_SERIAL_START);
@@ -262,12 +286,15 @@ int main() {
             break;
 
           case 'C':
+            CARD_SERIAL.write(CARD_PLAY_GAME);
             break;
 
           case 'S':
+            SIMON_SERIAL.write(SIMON_PLAY_GAME);
             break;
 
           case 'R':
+            RUBI_SERIAL.write(RUBI_PLAY_GAME);
             break;
 
           case 'F':
@@ -298,9 +325,24 @@ int main() {
             break;
 
           case 'C':
+            if (CARD_SERIAL.available() > 0)
+              byte_read = CARD_SERIAL.read();
+
+            game_timeout = CARD_TIMEOUT;
+            break;
+
           case 'S':
+            if (SIMON_SERIAL.available() > 0)
+              byte_read = SIMON_SERIAL.read();
+
+            game_timeout = SIMON_TIMEOUT;
+            break;
+
           case 'R':
-            game_timeout = TIMEOUT;
+            if (RUBI_SERIAL.available() > 0)
+              byte_read = RUBI_SERIAL.read();
+
+            game_timeout = RUBI_TIMEOUT;
             break;
         } //end switch(line_packet.game_state)
 
@@ -330,6 +372,8 @@ int main() {
         //finish case
       case FINISH:
         ETCH_SERIAL.write(ETCH_CLOSE_ARMS);
+        RUBI_SERIAL.write(RUBI_CLOSE_ARMS);
+        RUBI_SERIAL.write(RUBI_ALIGN);
         robot_state = STOPPED;
         break; //end finish
 
@@ -357,26 +401,26 @@ int main() {
         (prev_debug2 != line_packet.debug2)) {
 
       if (robot_state == STOPPED)
-        Serial.print("STOP");
+        DEBUG_SERIAL.print("STOP");
       else
-        Serial.print(line_packet.game_state);
+        DEBUG_SERIAL.print(line_packet.game_state);
 
-      Serial.print("\tx_vel: ");
-      Serial.print(movement_vector.x_velocity, 4);
-      Serial.print("\t");
+      DEBUG_SERIAL.print("\tx_vel: ");
+      DEBUG_SERIAL.print(movement_vector.x_velocity, 4);
+      DEBUG_SERIAL.print("\t");
 
-      Serial.print("\ty_vel: ");
-      Serial.print(movement_vector.y_velocity, 4);
+      DEBUG_SERIAL.print("\ty_vel: ");
+      DEBUG_SERIAL.print(movement_vector.y_velocity, 4);
 
-      Serial.print("\tang_vel: ");
-      Serial.print(movement_vector.angular_velocity, 4);
-      //Serial.print("\n");
+      DEBUG_SERIAL.print("\tang_vel: ");
+      DEBUG_SERIAL.print(movement_vector.angular_velocity, 4);
+      //DEBUG_SERIAL.print("\n");
 
-      Serial.print(" F");
-      Serial.write(line_packet.debug1);
-      Serial.print("B");
-      Serial.write(line_packet.debug2);
-      Serial.print("\n");
+      DEBUG_SERIAL.print(" F");
+      DEBUG_SERIAL.write(line_packet.debug1);
+      DEBUG_SERIAL.print("B");
+      DEBUG_SERIAL.write(line_packet.debug2);
+      DEBUG_SERIAL.print("\n");
 
       prev_x_vel = movement_vector.x_velocity;
       prev_y_vel = movement_vector.y_velocity;
@@ -434,9 +478,10 @@ void setup() {
   }
 
   //start the serial devices
-  Serial.begin(9600);
+  DEBUG_SERIAL.begin(9600);
   LINE_SERIAL.begin(9600);
   ETCH_SERIAL.begin(9600);
+  RUBI_SERIAL.begin(9600);
 
   //set the PID constants
   for (int i = 0; i < NUM_MOTORS; ++i) {
