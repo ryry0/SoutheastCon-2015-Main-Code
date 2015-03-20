@@ -280,20 +280,34 @@ int main() {
           line_packet.angular_velocity * LINE_RES_SCALE;
 
         switch(line_packet.game_state) {
-          //write one-shot code here to run during transition state
+          //write one-shot code here to run during transition state also make
+          //sure that the line is clear of lingering GAME_DONEs. if may need
+          //while
           case 'E':
+            if(ETCH_SERIAL.available() > 0) {
+              ETCH_SERIAL.read();
+            }
             ETCH_SERIAL.write(ETCH_PLAY_GAME);
             break;
 
           case 'C':
+            if(CARD_SERIAL.available() > 0) {
+              CARD_SERIAL.read();
+            }
             CARD_SERIAL.write(CARD_PLAY_GAME);
             break;
 
           case 'S':
+            if(SIMON_SERIAL.available() > 0) {
+              SIMON_SERIAL.read();
+            }
             SIMON_SERIAL.write(SIMON_PLAY_GAME);
             break;
 
           case 'R':
+            if(RUBI_SERIAL.available() > 0) {
+              RUBI_SERIAL.read();
+            }
             RUBI_SERIAL.write(RUBI_PLAY_GAME);
             break;
 
