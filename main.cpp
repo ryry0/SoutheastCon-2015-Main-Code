@@ -62,10 +62,10 @@
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
-#define ETCH_SERIAL Serial3
-#define RUBI_SERIAL Serial
-#define CARD_SERIAL Serial3
-#define SIMON_SERIAL Serial
+#define ETCH_SERIAL Serial
+#define RUBI_SERIAL Serial3
+#define CARD_SERIAL Serial
+#define SIMON_SERIAL Serial3
 
 #define DEBUG_SERIAL Serial1
 
@@ -109,7 +109,7 @@ const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
 // Photoresistor things
 const float prk  = 1.0/5.0;
-#define PHOTORESISTOR_THRESHOLD 400
+#define PHOTORESISTOR_THRESHOLD 300
 #define PHOTORESISTOR           A0
 
 enum states_t  {  STOPPED,        //default state when powered on
@@ -598,13 +598,13 @@ float computeVelocity(const int wheelnum,
       break;
 
     case 2:
-      velocity = inv_radius * (movement_vector.x_velocity +
+      velocity = -inv_radius * (movement_vector.x_velocity +
           movement_vector.y_velocity +
           pre_computed_LW2*movement_vector.angular_velocity);
       break;
 
     case 3:
-      velocity = inv_radius * (movement_vector.x_velocity -
+      velocity = -inv_radius * (movement_vector.x_velocity -
           movement_vector.y_velocity +
           pre_computed_LW2*movement_vector.angular_velocity);
       break;
