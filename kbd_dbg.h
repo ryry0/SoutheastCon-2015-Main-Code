@@ -71,13 +71,36 @@ void readKeyboard(movement_vector_t &movement_vector, states_t &state) {
 
       case 'O':
         RUBI_SERIAL.write(RUBI_OPEN_ARMS);
-        ETCH_SERIAL.write(ETCH_OPEN_ARMS);
         break;
 
       case 'C':
         RUBI_SERIAL.write(RUBI_CLOSE_ARMS);
-        ETCH_SERIAL.write(ETCH_CLOSE_ARMS);
         break;
+
+      case 'M':
+        RUBI_SERIAL.write(RUBI_RAISE);
+        break;
+
+      case 'k':
+        RUBI_SERIAL.write('S');
+        break;
+
+      case 'j':
+        RUBI_SERIAL.write('W');
+        break;
+
+      case 'l':
+        RUBI_SERIAL.write(RUBI_ALIGN);
+        break;
+
+      case ';':
+        RUBI_SERIAL.write('T');
+        break;
+
+      case ',':
+        RUBI_SERIAL.write('Z');
+        break;
+
       default:
         break;
     } //end switch
