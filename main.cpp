@@ -33,8 +33,9 @@
 #include "PID.h"
 #include "motor_pins.h"
 
-#define RESET_PIN 48
-#define PHOTSW_PIN 12
+#define RESET_PIN   48
+#define PHOTSW_PIN  12
+#define LED_PIN     13
 
 #define NO_PRESCALING 0x01
 #define PRESCALE_8    0x02
@@ -247,9 +248,14 @@ int main() {
         // Once the light goes off, 2/3 of the 5V should be across the PR,
         // so threshold is 512
         pr_voltage = (1-prk)*pr_voltage + prk*(float)analogRead(PHOTORESISTOR);
-        if ((pr_voltage > PHOTORESISTOR_THRESHOLD) &&
-            (digitalRead(PHOTSW_PIN) == LOW)) {
-          robot_state = INITIALIZE;
+        if (pr_voltage > PHOTORESISTOR_THRESHOLD) {
+          digitalWrite(LED_PIN, LOW);
+          if (digitalRead(PHOTSW_PIN) == LOW) {
+            robot_state = INITIALIZE;
+          }
+        }
+        else {
+          digitalWrite(LED_PIN, HIGH);
         }
         break; //end wait for led
 
@@ -491,6 +497,8 @@ void setup() {
 
   pinMode(PHOTSW_PIN, INPUT);
   digitalWrite(PHOTSW_PIN, HIGH);
+
+  pinMode(LED_PIN, OUTPUT);
 
   //stop the motors
   for (int i = 0; i < NUM_MOTORS; ++i) {
