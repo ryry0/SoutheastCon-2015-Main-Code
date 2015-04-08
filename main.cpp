@@ -26,7 +26,7 @@
 
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
-#define SERIAL_DEBUG
+//#define SERIAL_DEBUG
 //#define KBD_DEBUG
 
 #include "motor.h"
@@ -57,10 +57,10 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define ETCH_TIMEOUT  25000 //time to wait for the game to complete in ms
-#define RUBI_TIMEOUT  10000
-#define CARD_TIMEOUT  10000
-#define SIMON_TIMEOUT 20000
+#define ETCH_TIMEOUT  3000 //25000 //time to wait for the game to complete in ms
+#define RUBI_TIMEOUT  3000 //10000
+#define CARD_TIMEOUT  3000 //10000
+#define SIMON_TIMEOUT 3000 //20000
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
@@ -506,10 +506,13 @@ void setup() {
   }
 
   //start the serial devices
+#ifdef SERIAL_DEBUG
   DEBUG_SERIAL.begin(9600);
+#endif
+
   LINE_SERIAL.begin(9600);
-  ETCH_SERIAL.begin(9600);
-  RUBI_SERIAL.begin(9600);
+  //ETCH_SERIAL.begin(9600);
+  //RUBI_SERIAL.begin(9600);
 
   //set the PID constants
   for (int i = 0; i < NUM_MOTORS; ++i) {
