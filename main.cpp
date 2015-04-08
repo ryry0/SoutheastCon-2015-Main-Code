@@ -27,7 +27,7 @@
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
 #define SERIAL_DEBUG
-//#define KBD_DEBUG
+#define KBD_DEBUG
 
 #include "motor.h"
 #include "PID.h"
@@ -64,12 +64,12 @@
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
-#define ETCH_SERIAL Serial
+#define ETCH_SERIAL Serial1
 #define RUBI_SERIAL Serial3
-#define CARD_SERIAL Serial
+#define CARD_SERIAL Serial1
 #define SIMON_SERIAL Serial3
 
-#define DEBUG_SERIAL Serial1
+#define DEBUG_SERIAL Serial
 
 //Line following defines
 #define LINE_SERIAL_START 'S'
@@ -257,6 +257,8 @@ int main() {
         else {
           digitalWrite(LED_PIN, HIGH);
         }
+        DEBUG_SERIAL.print(pr_voltage, 4);
+        DEBUG_SERIAL.print("\n");
         break; //end wait for led
 
       case INITIALIZE:
