@@ -26,7 +26,7 @@
 
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
-#define SERIAL_DEBUG
+//#define SERIAL_DEBUG
 //#define KBD_DEBUG
 
 #include "motor.h"
@@ -95,7 +95,7 @@
 #define CARD_PLAY_GAME 'Q'
 
 //simon defines
-#define SIMON_PLAY_GAME 'Q'
+#define SIMON_PLAY_GAME 'R'
 
 #define GAME_DONE 'D'
 
@@ -506,7 +506,9 @@ void setup() {
   }
 
   //start the serial devices
+#ifdef SERIAL_DEBUG
   DEBUG_SERIAL.begin(9600);
+#endif
   LINE_SERIAL.begin(9600);
   ETCH_SERIAL.begin(9600);
   RUBI_SERIAL.begin(9600);
