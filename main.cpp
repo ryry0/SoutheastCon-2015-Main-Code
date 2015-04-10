@@ -90,6 +90,7 @@
 #define RUBI_PLAY_GAME  'J'
 #define RUBI_RAISE      'M'
 #define RUBI_ALIGN      'D'
+#define RUBI_STRAIGHT   'F'
 
 //card defines
 #define CARD_PLAY_GAME 'Q'
@@ -373,6 +374,9 @@ int main() {
         //timer for timing out the game
         if (((millis() - start_time ) > game_timeout) ||
             (byte_read == GAME_DONE)) {
+          if (line_packet.game_state ==  'S') { //if simon hits timout or requests timeout
+            SIMON_SERIAL.write(RUBI_RAISE);
+          }
           robot_state = FOLLOW_LINE;
           line_packet.game_state = 0;
           byte_read = 0;
@@ -397,7 +401,7 @@ int main() {
       case FINISH:
         ETCH_SERIAL.write(ETCH_CLOSE_ARMS);
         RUBI_SERIAL.write(RUBI_CLOSE_ARMS);
-        RUBI_SERIAL.write(RUBI_ALIGN);
+        RUBI_SERIAL.write(RUBI_STRAIGHT);
         robot_state = STOPPED;
         break; //end finish
 
