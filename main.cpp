@@ -26,7 +26,7 @@
 
 #define ARDUINO 102
 #define ENCODER_USE_INTERRUPTS
-//#define SERIAL_DEBUG
+#define SERIAL_DEBUG
 //#define KBD_DEBUG
 
 #include "motor.h"
@@ -421,39 +421,15 @@ int main() {
 #endif
 
 #ifdef SERIAL_DEBUG
-    if ((prev_state != robot_state) ||
-        (prev_x_vel != movement_vector.x_velocity) ||
-        (prev_y_vel != movement_vector.y_velocity) ||
-        (prev_ang_vel != movement_vector.angular_velocity) ||
-        (prev_debug1 != line_packet.debug1) ||
+    if ((prev_debug1 != line_packet.debug1) ||
         (prev_debug2 != line_packet.debug2)) {
 
-      if (robot_state == STOPPED)
-        DEBUG_SERIAL.print("STOP");
-      else
-        DEBUG_SERIAL.print(line_packet.game_state);
-
-      DEBUG_SERIAL.print("\tx_vel: ");
-      DEBUG_SERIAL.print(movement_vector.x_velocity, 4);
-      DEBUG_SERIAL.print("\t");
-
-      DEBUG_SERIAL.print("\ty_vel: ");
-      DEBUG_SERIAL.print(movement_vector.y_velocity, 4);
-
-      DEBUG_SERIAL.print("\tang_vel: ");
-      DEBUG_SERIAL.print(movement_vector.angular_velocity, 4);
-      //DEBUG_SERIAL.print("\n");
-
-      DEBUG_SERIAL.print(" F");
+      DEBUG_SERIAL.print("F");
       DEBUG_SERIAL.write(line_packet.debug1);
-      DEBUG_SERIAL.print("B");
+      DEBUG_SERIAL.print(" B");
       DEBUG_SERIAL.write(line_packet.debug2);
       DEBUG_SERIAL.print("\n");
 
-      prev_x_vel = movement_vector.x_velocity;
-      prev_y_vel = movement_vector.y_velocity;
-      prev_ang_vel = movement_vector.angular_velocity;
-      prev_state = robot_state;
       prev_debug1 = line_packet.debug1;
       prev_debug2 = line_packet.debug2;
     } //end if
