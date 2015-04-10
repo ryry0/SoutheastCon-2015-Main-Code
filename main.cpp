@@ -112,7 +112,7 @@ const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
 // Photoresistor things
 const float prk  = 1.0/5.0;
-#define PHOTORESISTOR_THRESHOLD 300
+#define PHOTORESISTOR_THRESHOLD 100
 #define PHOTORESISTOR           A0
 
 enum states_t  {  STOPPED,        //default state when powered on
@@ -214,6 +214,7 @@ int main() {
   char byte_read = 0; //used in wait_for_game state to check serial if done
 
   //photoresistor voltage
+  float pr_set_value = 0;
   float pr_voltage = 0;
 
   //timing stuff
@@ -249,11 +250,15 @@ int main() {
         // Once the light goes off, 2/3 of the 5V should be across the PR,
         // so threshold is 512
         pr_voltage = (1-prk)*pr_voltage + prk*(float)analogRead(PHOTORESISTOR);
-        if (pr_voltage > PHOTORESISTOR_THRESHOLD) {
+
+        if (digitalRead(PHOTSW_PIN) == HIGH) { //if switch is not ready
+          pr_set_value = pr_voltage; //record the voltage
+        }
+
+        if (pr_voltage > (pr_set_value + PHOTORESISTOR_THRESHOLD)) {
           digitalWrite(LED_PIN, LOW);
-          if (digitalRead(PHOTSW_PIN) == LOW) {
+          if (digitalRead(PHOTSW_PIN) == LOW)
             robot_state = INITIALIZE;
-          }
         }
         else {
           digitalWrite(LED_PIN, HIGH);
