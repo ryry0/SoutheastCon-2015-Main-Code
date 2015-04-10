@@ -112,7 +112,7 @@ const float pre_computed_LW2 = (LENGTH+WIDTH) / 2;
 
 // Photoresistor things
 const float prk  = 1.0/5.0;
-#define PHOTORESISTOR_THRESHOLD 300
+#define PHOTORESISTOR_THRESHOLD 800
 #define PHOTORESISTOR           A0
 
 enum states_t  {  STOPPED,        //default state when powered on
