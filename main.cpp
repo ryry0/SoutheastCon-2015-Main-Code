@@ -57,19 +57,19 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define ETCH_TIMEOUT  25000 //time to wait for the game to complete in ms
-#define RUBI_TIMEOUT  10000
-#define CARD_TIMEOUT  10000
-#define SIMON_TIMEOUT 20000
+#define ETCH_TIMEOUT  3000 //time to wait for the game to complete in ms
+#define RUBI_TIMEOUT  3000
+#define CARD_TIMEOUT  3000
+#define SIMON_TIMEOUT 3000
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
-#define ETCH_SERIAL Serial
+#define ETCH_SERIAL Serial1
 #define RUBI_SERIAL Serial3
-#define CARD_SERIAL Serial
+#define CARD_SERIAL Serial1
 #define SIMON_SERIAL Serial3
 
-#define DEBUG_SERIAL Serial1
+#define DEBUG_SERIAL Serial
 
 //Line following defines
 #define LINE_SERIAL_START 'S'
@@ -426,7 +426,7 @@ int main() {
 
       DEBUG_SERIAL.print("F");
       DEBUG_SERIAL.write(line_packet.debug1);
-      DEBUG_SERIAL.print(" B");
+      DEBUG_SERIAL.print("B");
       DEBUG_SERIAL.write(line_packet.debug2);
       DEBUG_SERIAL.print("\n");
 
