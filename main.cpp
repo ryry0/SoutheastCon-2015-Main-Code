@@ -78,11 +78,17 @@
 #define PACKET_LENGTH 8 //header cobs_byte y x a g d1 d2
 #define LINE_PACKET_HEADER 0x00
 
+//technically in the same uC
 //Etch-A-Sketch defines
 #define ETCH_OPEN_ARMS  'O'
 #define ETCH_CLOSE_ARMS 'C'
 #define ETCH_PLAY_GAME  'P'
 #define ETCH_RAISE      'T'
+
+//card defines
+#define CARD_PLAY_GAME 'Q'
+#define CARD_PRELOAD   'B'
+////////////////////////////////////////
 
 //Rubiks defines
 #define RUBI_OPEN_ARMS  'O'
@@ -92,11 +98,10 @@
 #define RUBI_ALIGN      'D'
 #define RUBI_STRAIGHT   'F'
 
-//card defines
-#define CARD_PLAY_GAME 'Q'
-
 //simon defines
 #define SIMON_PLAY_GAME 'R'
+#define SIMON_PRELOAD   'Q'
+////////////////////////////////////////
 
 #define GAME_DONE 'D'
 
@@ -272,9 +277,8 @@ int main() {
         //opens arms before beginning of run
         ETCH_SERIAL.write(ETCH_OPEN_ARMS);
         ETCH_SERIAL.write(ETCH_RAISE);
-        RUBI_SERIAL.write(RUBI_OPEN_ARMS);
-        RUBI_SERIAL.write(RUBI_RAISE);
-        RUBI_SERIAL.write(RUBI_ALIGN);
+
+        SIMON_SERIAL.write(SIMON_PRELOAD);
 
         //reset the serial
         LINE_SERIAL.write(LINE_SERIAL_START);
@@ -379,9 +383,17 @@ int main() {
         //timer for timing out the game
         if (((millis() - start_time ) > game_timeout) ||
             (byte_read == GAME_DONE)) {
-          if (line_packet.game_state ==  'S') { //if simon hits timout or requests timeout
-            SIMON_SERIAL.write(RUBI_RAISE);
-          }
+          //if any game hits timout or requests timeout
+          //and wants special care afterwards
+          switch (line_packet.game_state) {
+            case 'S':
+              SIMON_SERIAL.write(RUBI_RAISE);
+              break;
+
+            case 'R':
+              CARD_SERIAL.write(CARD_PRELOAD);
+              break;
+          } //end switch
           robot_state = FOLLOW_LINE;
           line_packet.game_state = 0;
           byte_read = 0;
