@@ -57,10 +57,10 @@
 #define CTC_MATCH 10000 //*should* run the interrupt at 200Hz
 #define SAMPLE_TIME 0.005
 
-#define ETCH_TIMEOUT  25000 //time to wait for the game to complete in ms
+#define ETCH_TIMEOUT  28000 //time to wait for the game to complete in ms
 #define RUBI_TIMEOUT  10000
 #define CARD_TIMEOUT  10000
-#define SIMON_TIMEOUT 20000
+#define SIMON_TIMEOUT 25000
 
 //define serial to use for each subsystem
 #define LINE_SERIAL Serial2
